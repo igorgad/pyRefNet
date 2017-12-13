@@ -18,3 +18,4 @@ def ncc(x,y,marray,s):
 
 
     return tf.map_fn(lambda m: nloop(m), marray)
+
