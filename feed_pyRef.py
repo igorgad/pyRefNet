@@ -5,17 +5,6 @@ import numpy as np
 import ITL
 import matplotlib.pylab as p
 
-def gkernel(x, y, s):
-    return tf.divide(1.0,tf.sqrt(tf.multiply(tf.multiply(2.0,np.pi),s))) * tf.exp( tf.divide(-tf.pow(tf.subtract(x,y), 2.0),tf.multiply(2.0,tf.pow(s, 2.0))) )
-
-
-def mloop(mm):
-    mm = tf.cast(mm,tf.int32)
-    N = tf.shape(x)[0]
-    nx = tf.range(0, tf.subtract(N,mm))
-    ny = tf.subtract(nx,mm)
-    return tf.reduce_mean(gkernel(tf.gather(x,nx),tf.gather(y,ny),sigma))
-
 
 # Initialize numpy variables
 mr = np.array(range(-64,65))
