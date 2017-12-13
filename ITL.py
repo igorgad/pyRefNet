@@ -12,7 +12,7 @@ def ncc(x,y,marray,s):
     def nloop(m):
         mm = tf.cast(m, tf.int32)
         N = tf.shape(x)[0]
-        nx = tf.range(0, tf.add(N,mm))
+        nx = tf.range(0, tf.subtract(N,tf.abs(mm)))
         ny = tf.subtract(nx, mm)
         return tf.reduce_mean(gkernel(tf.gather(x, nx), tf.gather(y, ny), s))
 
