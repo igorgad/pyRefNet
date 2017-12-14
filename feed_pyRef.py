@@ -8,9 +8,10 @@ import matplotlib.pylab as p
 
 # Initialize numpy variables
 mr = np.array(range(-64,65))
-a = np.random.rand(1024) # Batch size, N, nwin, nsignals
-b = np.random.rand(1024) # Batch size, N, nwin, nsignals
-sigma = 1.0
+a = np.random.randn(1024)
+b = np.zeros(1024)
+b[50:] = a[:-50]
+sigma = 0.1
 
 
 # Initialize tf graph
@@ -21,5 +22,5 @@ m = tf.placeholder(tf.float32, shape=np.shape(mr))
 ncc = ITL.ncc(x,y,m,sigma)
 
 sess = tf.Session()
-result = sess.run(ncc, {x: a, y: a, m: mr})
+result = sess.run(ncc, {x: a, y: b, m: mr})
 p.plot(mr,result)
