@@ -7,20 +7,23 @@ import matplotlib.pylab as p
 
 
 # Initialize numpy variables
-mr = np.array(range(-64,65))
-a = np.random.randn(1024)
-b = np.zeros(1024)
-b[50:] = a[:-50]
+mr = np.array(range(-64,64))
+insample = np.random.randn(10,128,16,1)
+insample = np.repeat(insample,2,axis=3)
 sigma = 0.1
 
-
 # Initialize tf graph
-x = tf.placeholder(tf.float32, shape=np.shape(a))
-y = tf.placeholder(tf.float32, shape=np.shape(b))
+ins = tf.placeholder(tf.float32, shape=np.shape(insample))
 m = tf.placeholder(tf.float32, shape=np.shape(mr))
 
-ncc = ITL.ncc(x,y,m,sigma)
+rs = ITL.ncclayer(ins,m)
 
 sess = tf.Session()
-result = sess.run(ncc, {x: a, y: b, m: mr})
-p.plot(mr,result)
+sess.run(tf.global_variables_initializer())
+
+feed_dict = {ins: insample, m: mr}
+r = sess.run(rs, feed_dict=feed_dict)
+
+
+print(r)
+p.plot(mr,r[0,:])
