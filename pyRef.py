@@ -7,7 +7,6 @@ import ITL
 
 # TODO - encapsulate network params into a netparam dict
 ##### NETWORK PARAMS #####
-
 marray = np.array(range(-80,80))
 medfiltersize = 8
 nsigs = 2
@@ -22,7 +21,6 @@ shapeconv4 = [1, 5, 64, 32]
 fc1_nhidden = nwin * len(marray)
 fc2_nhidden = nwin * len(marray)
 nclass = len(marray)
-
 ##########################
 
 
@@ -137,3 +135,4 @@ def evaluation(logits, labels):
     correct = tf.nn.in_top_k(logits, labels, 1)
     # Return the number of true entries.
     return tf.reduce_sum(tf.cast(correct, tf.int32))
+
