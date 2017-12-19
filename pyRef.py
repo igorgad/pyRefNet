@@ -7,11 +7,13 @@ import ITL
 
 # TODO - encapsulate network params into a netparam dict
 ##### NETWORK PARAMS #####
-marray = np.array(range(-80,80))
-medfiltersize = 8
-nsigs = 2
-nwin = 64
+N = 256     # VBR signal length
+nwin = 64   # Number of windows
+nsigs = 2   # Amount of signals
 
+marray = np.array(range(-80,80)) # marray vary from -80 -79 ... 79
+
+medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((medfiltersize, 1, 1, nsigs), dtype=np.float32)
 
 shapeconv2 = [1, 9, 1, 128]
