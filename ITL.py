@@ -38,5 +38,5 @@ def ncclayer(ins,marray):
     sx = tf.reshape(tf.transpose(x, [0, 2, 1]), [batchsize * nwin, N])
     sy = tf.reshape(tf.transpose(y, [0, 2, 1]), [batchsize * nwin, N])
 
-    return tf.transpose(tf.reshape(tf.map_fn(lambda i: ncc(sx[i, :], sy[i, :], marray, Sigma), tf.range(batchsize * nwin), dtype=tf.float32), [batchsize, nwin, N]), [0, 2, 1])
-
+    return tf.expand_dims(tf.transpose(tf.reshape(tf.map_fn(lambda i: ncc(sx[i, :], sy[i, :], marray, Sigma),
+                                                            tf.range(batchsize * nwin), dtype=tf.float32), [batchsize, nwin, marray.size]), [0, 2, 1]), 3)
