@@ -11,43 +11,43 @@ N = 256     # VBR signal length
 nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
 
-marray = np.array(range(-80,80)) # marray vary from -80 -79 ... 79
+marray = np.float32(np.array(range(-80,80))) # marray vary from -80 -79 ... 79
 
 medfiltersize = 8
-medinit = 1/medfiltersize * np.ones((medfiltersize, 1, 1, nsigs), dtype=np.float32)
+medinit = 1/medfiltersize * np.ones((medfiltersize, 1, nsigs, nsigs), dtype=np.float32)
 
-shapeconv2 = [1, 9, 1, 128]
-shapeconv3 = [1, 5, 128, 64]
-shapeconv4 = [1, 5, 64, 32]
+shapeconv2 = [1, 9, 2, 64]
+shapeconv3 = [1, 5, 64, 32]
+shapeconv4 = [1, 5, 32, 16]
 
-fc1_nhidden = nwin * len(marray)
-fc2_nhidden = nwin * len(marray)
+fc1_nhidden = 4096
+fc2_nhidden = 4096
 nclass = len(marray)
 ##########################
 
 
 def inference(ins, keep_prob):
 
-    # Conv 1 Layer (Mean Filter)
-    with tf.name_scope('conv_1'):
-        wc1 = tf.Variable( medinit )
-        bc1 =  tf.constant(0.0, shape=[nsigs])
+    # # Conv 1 Layer (Mean Filter)
+    # with tf.name_scope('conv_1'):
+    #     wc1 = tf.Variable( medinit )
+    #     bc1 =  tf.constant(0.0, shape=[nsigs])
+    #
+    #     conv1 = tf.nn.relu( tf.nn.conv2d(ins, wc1, strides=[1,1,1,1], padding='VALID') + bc1 )
 
-        conv1 = tf.nn.relu( tf.nn.conv2d(ins, wc1, strides=[1,1,1,1], padding='SAME') + bc1 )
-
-    # Normalized Cross Correntropy Layer
-    with tf.name_scope('ccc'):
-        ccc1 = ITL.ncclayer(conv1, marray)
+    # # Normalized Cross Correntropy Layer
+    # with tf.name_scope('ccc'):
+    #     ccc1 = ITL.ncclayer(conv1, marray)
 
     # Conv 2 Layer
     with tf.name_scope('conv_2'):
         wc2 = tf.Variable( tf.truncated_normal(shape=shapeconv2, stddev=0.1) )
-        bc2 =  tf.constant(0.0, shape=[128])
+        bc2 =  tf.constant(0.0, shape=[shapeconv2[3]])
 
-        conv2 = tf.nn.relu( tf.nn.conv2d(ccc1, wc2, strides=[1,1,1,1], padding='SAME') + bc2 )
+        conv2 = tf.nn.relu( tf.nn.conv2d(ins, wc2, strides=[1,1,1,1], padding='VALID') + bc2 )
 
     with tf.name_scope('pool_2'):
-        pool2 = tf.nn.max_pool(conv2, ksize=[1, 1, 2, 1], strides=[1, 1, 2, 1], padding='SAME')
+        pool2 = tf.nn.max_pool(conv2, ksize=[1, 1, 2, 1], strides=[1, 1, 2, 1], padding='VALID')
 
     with tf.name_scope('dropout_conv2'):
         drop2 = tf.nn.dropout(pool2, keep_prob)
@@ -55,12 +55,12 @@ def inference(ins, keep_prob):
     # Conv 3 Layer
     with tf.name_scope('conv_3'):
         wc3 = tf.Variable( tf.truncated_normal(shape=shapeconv3, stddev=0.1) )
-        bc3 =  tf.constant(0.0, shape=[64])
+        bc3 =  tf.constant(0.0, shape=[shapeconv3[3]])
 
-        conv3 = tf.nn.relu( tf.nn.conv2d(drop2, wc3, strides=[1,1,1,1], padding='SAME') + bc3 )
+        conv3 = tf.nn.relu( tf.nn.conv2d(drop2, wc3, strides=[1,1,1,1], padding='VALID') + bc3 )
 
     with tf.name_scope('pool_3'):
-        pool3 = tf.nn.max_pool(conv3, ksize=[1, 1, 2, 1], strides=[1, 1, 2, 1], padding='SAME')
+        pool3 = tf.nn.max_pool(conv3, ksize=[1, 1, 2, 1], strides=[1, 1, 2, 1], padding='VALID')
 
     with tf.name_scope('dropout_conv3'):
         drop3 = tf.nn.dropout(pool3, keep_prob)
@@ -68,24 +68,25 @@ def inference(ins, keep_prob):
     # Conv 4 Layer
     with tf.name_scope('conv_4'):
         wc4 = tf.Variable( tf.truncated_normal(shape=shapeconv4, stddev=0.1) )
-        bc4 =  tf.constant(0.0, shape=[32])
+        bc4 =  tf.constant(0.0, shape=[shapeconv4[3]])
 
-        conv4 = tf.nn.relu( tf.nn.conv2d(drop3, wc4, strides=[1,1,1,1], padding='SAME') + bc4 )
+        conv4 = tf.nn.relu( tf.nn.conv2d(drop3, wc4, strides=[1,1,1,1], padding='VALID') + bc4 )
 
     with tf.name_scope('pool_4'):
-        pool4 = tf.nn.max_pool(conv4, ksize=[1, 1, 2, 1], strides=[1, 1, 2, 1], padding='SAME')
+        pool4 = tf.nn.max_pool(conv4, ksize=[1, 1, 2, 1], strides=[1, 1, 2, 1], padding='VALID')
 
     with tf.name_scope('dropout_conv4'):
         drop4 = tf.nn.dropout(pool4, keep_prob)
 
     #Flatten tensors
+
     with tf.name_scope('flattening'):
-        flat4 = tf.reshape(drop4, [-1, tf.size(drop4)])
+        flat4 = tf.reshape(drop4, [-1, 4*N*16])
 
     # FC 1 Layer
     with tf.name_scope('fc_1'):
-        wfc1 = tf.Variable( tf.truncated_normal(shape=[tf.shape(flat4)[1],fc1_nhidden], stddev=0.1) )
-        bfc1 =  tf.constant(0.0, shape=[32])
+        wfc1 = tf.Variable( tf.truncated_normal(shape=[4*N*16,fc1_nhidden], stddev=0.1) )
+        bfc1 =  tf.constant(0.0, shape=[fc1_nhidden])
 
         fc1 = tf.nn.relu(tf.matmul(flat4, wfc1) + bfc1)
 
@@ -95,7 +96,7 @@ def inference(ins, keep_prob):
     # FC 2 Layer
     with tf.name_scope('fc_2'):
         wfc2 = tf.Variable( tf.truncated_normal(shape=[fc1_nhidden,fc2_nhidden], stddev=0.1) )
-        bfc2 =  tf.constant(0.0, shape=[32])
+        bfc2 =  tf.constant(0.0, shape=[fc2_nhidden])
 
         fc2 = tf.nn.relu(tf.matmul(dropfc1, wfc2) + bfc2)
 
@@ -105,7 +106,7 @@ def inference(ins, keep_prob):
     # Logits Layer
     with tf.name_scope('logits'):
         wl = tf.Variable(tf.truncated_normal(shape=[fc2_nhidden,nclass], stddev=0.1))
-        bl = tf.constant(0.0, shape=[32])
+        bl = tf.constant(0.0, shape=[nclass])
 
         logits = tf.matmul(dropfc2, wl) + bl
     return logits
@@ -134,7 +135,15 @@ def training(loss, learning_rate):
 
 
 def evaluation(logits, labels):
-    correct = tf.nn.in_top_k(logits, labels, 1)
-    # Return the number of true entries.
-    return tf.reduce_sum(tf.cast(correct, tf.int32))
+    correct1 = tf.nn.in_top_k(logits, labels, 1)
+    correct5 = tf.nn.in_top_k(logits, labels, 5)
+
+    eval1 = tf.reduce_sum(tf.cast(correct1, tf.int32))
+    eval5 = tf.reduce_sum(tf.cast(correct5, tf.int32))
+
+    tf.summary.scalar('top-1', eval1)
+    tf.summary.scalar('top-5', eval5)
+
+    return eval1, eval5
+
 
