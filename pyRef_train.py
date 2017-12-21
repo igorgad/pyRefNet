@@ -17,9 +17,13 @@ def placeholder_inputs(batch_size):
 
 
 def fill_feed_dict(mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl):
+    # TODO: Optimize dataset access function.
 
     ins_feed = np.array([mmap[itm][0] for itm in batch_ids])
     lbs_feed = np.array([mmap[itm][1] for itm in batch_ids]) + 80
+
+    # ins_feed = np.random.randn(batch_ids.size, 256, 64, 2) - THis test gives about twice the speed
+    # lbs_feed = np.random.randint(1,159,batch_ids.size)
 
     feed_dict = { ins_pl: ins_feed, lbs_pl: lbs_feed, keepp_pl: keep_prob }
 
@@ -68,7 +72,7 @@ def run_training(trainParams):
 
                 duration = time.time() - start_time
 
-                print ('TRAIN epoch %d, %d/%d. %0.2f ms. loss: %0.04f. top1 %0.04f. top5 %0.04f' % (epoch, bthc, nsteps_train, 1.0/duration, loss_value, top1_value, top5_value) )
+                print ('TRAIN epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' % (epoch, bthc, nsteps_train, 1.0/duration, loss_value, top1_value, top5_value) )
 
             # Evaluate
             for bthc in range(nsteps_eval):
@@ -82,7 +86,7 @@ def run_training(trainParams):
 
                 duration = time.time() - start_time
 
-                print('TEST epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' % ( epoch, bthc, nsteps_eval, duration, loss_value, top1_value, top5_value))
+                print('TEST epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' % ( epoch, bthc, nsteps_eval, 1.0/duration, loss_value, top1_value, top5_value))
 
             # Write summaries for tensorboard
             feed_dict = fill_feed_dict(trainParams.mmap, [0], 1, ins_pl, lbs_pl, keepp_pl)
@@ -97,9 +101,10 @@ def run_training(trainParams):
 
 
 def runExperiment(trainParams):
-    if tf.gfile.Exists(trainParams.log_dir):
-        tf.gfile.DeleteRecursively(trainParams.log_dir)
-    tf.gfile.MakeDirs(trainParams.log_dir)
+    # if tf.gfile.Exists(trainParams.log_dir):
+    #     tf.gfile.DeleteRecursively(trainParams.log_dir)
+    #
+    # tf.gfile.MakeDirs(trainParams.log_dir)
 
     run_training(trainParams)
 
