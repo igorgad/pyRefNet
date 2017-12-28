@@ -16,7 +16,7 @@ marray = np.float32(np.array(range(-80,80))) # marray vary from -80 -79 ... 79
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((medfiltersize, 1, nsigs, nsigs), dtype=np.float32)
 
-shapeconv2 = [1, 9, 2, 64]
+shapeconv2 = [1, 9, 1, 64]
 shapeconv3 = [1, 5, 64, 32]
 shapeconv4 = [1, 5, 32, 16]
 
@@ -28,23 +28,29 @@ nclass = len(marray)
 
 def inference(ins, keep_prob):
 
-    # # Conv 1 Layer (Mean Filter)
-    # with tf.name_scope('conv_1'):
-    #     wc1 = tf.Variable( medinit )
-    #     bc1 =  tf.constant(0.0, shape=[nsigs])
-    #
-    #     conv1 = tf.nn.relu( tf.nn.conv2d(ins, wc1, strides=[1,1,1,1], padding='VALID') + bc1 )
+    # Conv 1 Layer (Mean Filter)
+    with tf.name_scope('conv_1'):
+        wc1 = tf.Variable( medinit )
+        bc1 =  tf.constant(0.0, shape=[nsigs])
 
-    # # Normalized Cross Correntropy Layer
-    # with tf.name_scope('ccc'):
-    #     ccc1 = ITL.ncclayer(conv1, marray)
+        conv1 = tf.nn.relu( tf.nn.conv2d(ins, wc1, strides=[1,1,1,1], padding='VALID') + bc1 )
+
+        tf.summary.histogram('wc1-gram', wc1)
+        tf.summary.histogram('bc1-gram', bc1)
+
+    # Normalized Cross Correntropy Layer
+    with tf.name_scope('ccc'):
+        ccc1 = ITL.ncclayer(conv1, marray)
 
     # Conv 2 Layer
     with tf.name_scope('conv_2'):
         wc2 = tf.Variable( tf.truncated_normal(shape=shapeconv2, stddev=0.1) )
         bc2 =  tf.constant(0.0, shape=[shapeconv2[3]])
 
-        conv2 = tf.nn.relu( tf.nn.conv2d(ins, wc2, strides=[1,1,1,1], padding='VALID') + bc2 )
+        conv2 = tf.nn.relu( tf.nn.conv2d(ccc1, wc2, strides=[1,1,1,1], padding='VALID') + bc2 )
+
+        tf.summary.histogram('wc2-gram', wc2)
+        tf.summary.histogram('bc2-gram', bc2)
 
     with tf.name_scope('pool_2'):
         pool2 = tf.nn.max_pool(conv2, ksize=[1, 1, 2, 1], strides=[1, 1, 2, 1], padding='VALID')
@@ -59,6 +65,9 @@ def inference(ins, keep_prob):
 
         conv3 = tf.nn.relu( tf.nn.conv2d(drop2, wc3, strides=[1,1,1,1], padding='VALID') + bc3 )
 
+        tf.summary.histogram('wc3-gram', wc3)
+        tf.summary.histogram('bc3-gram', bc3)
+
     with tf.name_scope('pool_3'):
         pool3 = tf.nn.max_pool(conv3, ksize=[1, 1, 2, 1], strides=[1, 1, 2, 1], padding='VALID')
 
@@ -72,6 +81,9 @@ def inference(ins, keep_prob):
 
         conv4 = tf.nn.relu( tf.nn.conv2d(drop3, wc4, strides=[1,1,1,1], padding='VALID') + bc4 )
 
+        tf.summary.histogram('wc4-gram', wc4)
+        tf.summary.histogram('bc4-gram', bc4)
+
     with tf.name_scope('pool_4'):
         pool4 = tf.nn.max_pool(conv4, ksize=[1, 1, 2, 1], strides=[1, 1, 2, 1], padding='VALID')
 
@@ -81,14 +93,17 @@ def inference(ins, keep_prob):
     #Flatten tensors
 
     with tf.name_scope('flattening'):
-        flat4 = tf.reshape(drop4, [-1, 4*N*16])
+        flat4 = tf.reshape(drop4, [-1, 4*marray.size*16])
 
     # FC 1 Layer
     with tf.name_scope('fc_1'):
-        wfc1 = tf.Variable( tf.truncated_normal(shape=[4*N*16,fc1_nhidden], stddev=0.1) )
+        wfc1 = tf.Variable( tf.truncated_normal(shape=[4*marray.size*16,fc1_nhidden], stddev=0.1) )
         bfc1 =  tf.constant(0.0, shape=[fc1_nhidden])
 
         fc1 = tf.nn.relu(tf.matmul(flat4, wfc1) + bfc1)
+
+        tf.summary.histogram('fc1-gram', wfc1)
+        tf.summary.histogram('fc1-gram', bfc1)
 
     with tf.name_scope('dropout_fc1'):
         dropfc1 = tf.nn.dropout(fc1, keep_prob)
@@ -99,6 +114,9 @@ def inference(ins, keep_prob):
         bfc2 =  tf.constant(0.0, shape=[fc2_nhidden])
 
         fc2 = tf.nn.relu(tf.matmul(dropfc1, wfc2) + bfc2)
+
+        tf.summary.histogram('fc2-gram', wfc2)
+        tf.summary.histogram('fc2-gram', bfc2)
 
     with tf.name_scope('dropout_fc2'):
         dropfc2 = tf.nn.dropout(fc2, keep_prob)

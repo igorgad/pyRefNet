@@ -7,7 +7,6 @@ import numpy as np
 import pyRef
 
 
-
 def placeholder_inputs(batch_size):
     ins_pl = tf.placeholder(tf.float32, shape=[batch_size, pyRef.N, pyRef.nwin, pyRef.nsigs])
     lbs_pl = tf.placeholder(tf.int32, shape=[batch_size])
@@ -46,7 +45,7 @@ def run_training(trainParams):
         init = tf.global_variables_initializer()
         saver = tf.train.Saver()
 
-        sess = tf.Session()
+        sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
         summary_writer = tf.summary.FileWriter(trainParams.log_dir, sess.graph)
 
         sess.run(init)
@@ -65,13 +64,19 @@ def run_training(trainParams):
                 batch_ids = np.random.choice(trainParams.trainIds,trainParams.batch_size)
                 keep_prob = 0.5 #Dynamic control of dropout rate
 
+                run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                run_metadata = tf.RunMetadata()
+
                 start_time = time.time()
 
                 feed_dict = fill_feed_dict(trainParams.mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl)
-                _, loss_value, top1_value, top5_value = sess.run([train_op, loss, eval_top1, eval_top5], feed_dict=feed_dict)
+                summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, loss, eval_top1, eval_top5], feed_dict=feed_dict, options=run_options, run_metadata=run_metadata)
 
                 duration = time.time() - start_time
 
+                summary_writer.add_run_metadata(run_metadata, 'step %d' % (epoch*nsteps_train + bthc))
+                summary_writer.add_summary(summary_str, epoch*nsteps_train + bthc)
+                summary_writer.flush()
                 print ('TRAIN epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' % (epoch, bthc, nsteps_train, 1.0/duration, loss_value, top1_value, top5_value) )
 
             # Evaluate
@@ -82,17 +87,14 @@ def run_training(trainParams):
                 start_time = time.time()
 
                 feed_dict = fill_feed_dict(trainParams.mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl)
-                _, loss_value, top1_value, top5_value = sess.run([train_op, loss, eval_top1, eval_top5], feed_dict=feed_dict)
+                summary_str, loss_value, top1_value, top5_value = sess.run([summary, loss, eval_top1, eval_top5], feed_dict=feed_dict)
 
                 duration = time.time() - start_time
 
+                summary_writer.add_summary(summary_str, epoch*nsteps_eval + bthc)
+                summary_writer.flush()
                 print('TEST epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' % ( epoch, bthc, nsteps_eval, 1.0/duration, loss_value, top1_value, top5_value))
-
-            # Write summaries for tensorboard
-            feed_dict = fill_feed_dict(trainParams.mmap, [0], 1, ins_pl, lbs_pl, keepp_pl)
-            summary_str = sess.run(summary, feed_dict=feed_dict)
-            summary_writer.add_summary(summary_str, epoch)
-            summary_writer.flush()
+            
 
             # Save a checkpoint
             if (epoch + 1) % 10 == 0 or (epoch + 1) == trainParams.max_steps:
