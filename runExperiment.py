@@ -18,7 +18,7 @@ trainParams.momentum    = 0.8 # Not used
 trainParams.weigthDecay = 0.0 # Not used
 
 trainParams.numEpochs   = 200
-trainParams.batch_size  = 5
+trainParams.batch_size  = 2
 
 trainParams.combSets    = [3, 4, 5]
 

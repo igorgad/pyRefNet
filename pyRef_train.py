@@ -8,7 +8,7 @@ import pyRef
 
 
 def placeholder_inputs(batch_size):
-    ins_pl = tf.placeholder(tf.float32, shape=[batch_size, pyRef.N, pyRef.nwin, pyRef.nsigs])
+    ins_pl = tf.placeholder(tf.float32, shape=[batch_size, pyRef.nwin, pyRef.N, pyRef.nsigs])
     lbs_pl = tf.placeholder(tf.int32, shape=[batch_size])
     keepp_pl = tf.placeholder(tf.float32)
 
@@ -18,7 +18,7 @@ def placeholder_inputs(batch_size):
 def fill_feed_dict(mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl):
     # TODO: Optimize dataset access function.
 
-    ins_feed = np.array([mmap[itm][0] for itm in batch_ids])
+    ins_feed = np.transpose(np.array([mmap[itm][0] for itm in batch_ids]), [0,2,1,3]) # NEWS: Set [bsize,nwin,N,nsigs]
     lbs_feed = np.array([mmap[itm][1] for itm in batch_ids]) + 80
 
     # ins_feed = np.random.randn(batch_ids.size, 256, 64, 2) - THis test gives about twice the speed
