@@ -14,18 +14,24 @@ class trainParams:
 
 # Fill pyRef_train.trainParams class with training parameters.
 trainParams.lr          = 0.001
-trainParams.momentum    = 0.8 # Not used
+trainParams.momentum    = 0.6
 trainParams.weigthDecay = 0.0 # Not used
 
 trainParams.numEpochs   = 200
-trainParams.batch_size  = 2
+trainParams.batch_size  = 32
 
-trainParams.combSets    = [3, 4, 5]
+trainParams.combSets    = [4, 5]
 
-trainParams.prefix      = 'REFTEST_BNORM'
+
 trainParams.datasetfile = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/REFTEST_N' + str(pyRef.N) + '_NW' + str(pyRef.nwin) + '_XPAN10_medleyVBRdataset.mat'
-trainParams.log_dir     = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/tensorlogs/' + str(trainParams.prefix) + 'N' + str(pyRef.N) + '_NW' + str(pyRef.nwin)
+trainParams.log_root     = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/tensorlogs/'
 
+
+trainParams.runName      = "{}_N{}_NW{}".format('initTest' , pyRef.N, pyRef.nwin)
+n = sum(1 for f in os.listdir(trainParams.log_root) if os.path.isdir(os.path.join(trainParams.log_root, f)))
+trainParams.log_dir = "{}{}_run_{}".format(trainParams.log_root, trainParams.runName, n+1)
+
+print ('logdir ' + trainParams.log_dir)
 
 # Prepare DATASET Access and choose random examples from the specified classess to fill train and eval indexes
 trainParams.dtf = open(trainParams.datasetfile, 'r')
@@ -36,11 +42,9 @@ cid = np.array(np.nonzero(np.in1d(combClass, trainParams.combSets) * 1))[0][:]
 trainParams.trainIds = np.random.choice(cid, int(cid.size*0.8))
 trainParams.evalIds  = np.random.choice(np.setdiff1d(cid, trainParams.trainIds), int(cid.size*0.2))
 
-trainParams.mmap = np.memmap(trainParams.datasetfile, dtype=np.dtype([('ins', (np.float32, (pyRef.N, pyRef.nwin, pyRef.nsigs))), ('lbls', np.int32)]), mode='r', offset=ncomb.nbytes+combClass.nbytes)
-
-# Start tensorboard on logdir
-os.system('python -m tensorflow.tensorboard --logdir=' + trainParams.log_dir)
+trainParams.mmap = np.memmap(trainParams.datasetfile, dtype=np.dtype([('ins', (np.float32, (pyRef.nsigs, pyRef.nwin, pyRef.N))), ('lbls', np.int32)]),
+                             mode='r', offset=ncomb.nbytes+combClass.nbytes)
 
 # Run experiments
-pyRef_train.runExperiment(trainParams)
+dbg = pyRef_train.runExperiment(trainParams)
 

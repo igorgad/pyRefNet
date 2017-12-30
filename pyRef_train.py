@@ -1,5 +1,5 @@
+
 import os
-import sys
 import time
 
 import tensorflow as tf
@@ -18,13 +18,10 @@ def placeholder_inputs(batch_size):
 def fill_feed_dict(mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl):
     # TODO: Optimize dataset access function.
 
-    ins_feed = np.transpose(np.array([mmap[itm][0] for itm in batch_ids]), [0,2,1,3]) # NEWS: Set [bsize,nwin,N,nsigs]
+    ins_feed = np.transpose(np.array([mmap[itm][0] for itm in batch_ids]), [0,2,3,1]) # NEWS: Set [bsize,nwin,N,nsigs]
     lbs_feed = np.array([mmap[itm][1] for itm in batch_ids]) + 80
 
-    # ins_feed = np.random.randn(batch_ids.size, 256, 64, 2) - THis test gives about twice the speed
-    # lbs_feed = np.random.randint(1,159,batch_ids.size)
-
-    feed_dict = { ins_pl: ins_feed, lbs_pl: lbs_feed, keepp_pl: keep_prob }
+    feed_dict = { ins_pl: ins_feed.astype(np.float32), lbs_pl: lbs_feed.astype(np.int32), keepp_pl: keep_prob }
 
     return feed_dict
 
@@ -37,7 +34,7 @@ def run_training(trainParams):
 
         logits = pyRef.inference(ins_pl, keepp_pl)
         loss = pyRef.loss(logits, lbs_pl)
-        train_op = pyRef.training(loss, trainParams.lr)
+        train_op = pyRef.training(loss, trainParams.lr, trainParams.momentum)
         eval_top1, eval_top5 = pyRef.evaluation(logits, lbs_pl)
 
         summary = tf.summary.merge_all()
@@ -45,7 +42,7 @@ def run_training(trainParams):
         init = tf.global_variables_initializer()
         saver = tf.train.Saver()
 
-        sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+        sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
         summary_writer = tf.summary.FileWriter(trainParams.log_dir, sess.graph)
 
         sess.run(init)
@@ -70,14 +67,15 @@ def run_training(trainParams):
                 start_time = time.time()
 
                 feed_dict = fill_feed_dict(trainParams.mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl)
-                summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, loss, eval_top1, eval_top5], feed_dict=feed_dict, options=run_options, run_metadata=run_metadata)
+                summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, loss, eval_top1, eval_top5],
+                                                                              feed_dict=feed_dict, options=run_options, run_metadata=run_metadata)
 
                 duration = time.time() - start_time
 
                 summary_writer.add_run_metadata(run_metadata, 'step %d' % (epoch*nsteps_train + bthc))
                 summary_writer.add_summary(summary_str, epoch*nsteps_train + bthc)
                 summary_writer.flush()
-                print ('TRAIN epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' % (epoch, bthc, nsteps_train, 1.0/duration, loss_value, top1_value, top5_value) )
+                print ('TRAIN epoch %d, %d/%d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' % (epoch, bthc, nsteps_train, 1.0/duration, loss_value, top1_value, top5_value) )
 
             # Evaluate
             for bthc in range(nsteps_eval):
@@ -103,10 +101,10 @@ def run_training(trainParams):
 
 
 def runExperiment(trainParams):
-    # if tf.gfile.Exists(trainParams.log_dir):
-    #     tf.gfile.DeleteRecursively(trainParams.log_dir)
-    #
-    # tf.gfile.MakeDirs(trainParams.log_dir)
+    if tf.gfile.Exists(trainParams.log_dir):
+        tf.gfile.DeleteRecursively(trainParams.log_dir)
 
-    run_training(trainParams)
+    tf.gfile.MakeDirs(trainParams.log_dir)
+
+    return run_training(trainParams)
 

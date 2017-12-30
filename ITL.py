@@ -54,7 +54,7 @@ def ncc(x,y,marray,s):
         return tf.transpose(tf.stack(nccb), [1,0])
 
 
-def ncclayer(ins,marray):
+def ncclayer(ins,marray,Sigma):
     """ This function creates a computational graph for the correntropy layer.
     ins is a tensor of shape [batchSize NumberOfSamples NumberOfWindows NumberOfSignals==2]
     marray is a tensor with rank 1 containing m values to be analyzed """
@@ -65,11 +65,10 @@ def ncclayer(ins,marray):
     nwin = tf.shape(ins)[1]
     N = tf.shape(ins)[2]
 
-    Sigma = tf.Variable(1.0)
-
-    tf.summary.scalar('sigma', Sigma)
-
     sx = tf.reshape(x, [batchsize * nwin, N])
     sy = tf.reshape(y, [batchsize * nwin, N])
 
-    return tf.expand_dims(tf.reshape(ncc(sx, sy, marray, Sigma), [batchsize, nwin, marray.size]), dim=3)
+    nccr = tf.expand_dims(ncc(sx, sy, marray, Sigma), dim=2)
+    nccr = tf.image.per_image_standardization(nccr)
+
+    return tf.reshape(nccr, [batchsize, nwin, marray.size, 1])
