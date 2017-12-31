@@ -13,8 +13,8 @@ class trainParams:
     pass
 
 # Fill pyRef_train.trainParams class with training parameters.
-trainParams.lr          = 0.001
-trainParams.momentum    = 0.6
+trainParams.lr          = 0.0001
+trainParams.momentum    = 0.6 # Not used
 trainParams.weigthDecay = 0.0 # Not used
 
 trainParams.numEpochs   = 200
@@ -22,14 +22,12 @@ trainParams.batch_size  = 32
 
 trainParams.combSets    = [4, 5]
 
-
 trainParams.datasetfile = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/REFTEST_N' + str(pyRef.N) + '_NW' + str(pyRef.nwin) + '_XPAN10_medleyVBRdataset.mat'
 trainParams.log_root     = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/tensorlogs/'
 
-
 trainParams.runName      = "{}_N{}_NW{}".format('initTest' , pyRef.N, pyRef.nwin)
-n = sum(1 for f in os.listdir(trainParams.log_root) if os.path.isdir(os.path.join(trainParams.log_root, f)))
-trainParams.log_dir = "{}{}_run_{}".format(trainParams.log_root, trainParams.runName, n+1)
+trainParams.n = sum(1 for f in os.listdir(trainParams.log_root) if os.path.isdir(os.path.join(trainParams.log_root, f)))
+trainParams.log_dir = "{}{}_run_{}".format(trainParams.log_root, trainParams.runName, trainParams.n+1)
 
 print ('logdir ' + trainParams.log_dir)
 

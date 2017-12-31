@@ -146,6 +146,7 @@ def inference(ins, keep_prob):
 
         logits = tf.matmul(dropfc2, wl) + bl
 
+    tf.summary.image('logits', tf.expand_dims(tf.expand_dims(logits, axis=0), axis=3))
     return logits
 
 
@@ -161,7 +162,7 @@ def training(loss, learning_rate, momentum):
 
     # Create the gradient descent optimizer with the given learning rate.
     # optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-    optimizer = tf.train.MomentumOptimizer(learning_rate, momentum)
+    optimizer = tf.train.AdamOptimizer(learning_rate)
 
     # Create a variable to track the global step.
     global_step = tf.Variable(0, name='global_step', trainable=False)
@@ -176,8 +177,8 @@ def evaluation(logits, labels):
     correct1 = tf.nn.in_top_k(logits, labels, 1)
     correct5 = tf.nn.in_top_k(logits, labels, 5)
 
-    eval1 = tf.reduce_mean(tf.cast(correct1, tf.int32))
-    eval5 = tf.reduce_mean(tf.cast(correct5, tf.int32))
+    eval1 = tf.reduce_mean(tf.cast(correct1, tf.float32))
+    eval5 = tf.reduce_mean(tf.cast(correct5, tf.float32))
 
     tf.summary.scalar('top-1', eval1)
     tf.summary.scalar('top-5', eval5)
