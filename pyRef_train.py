@@ -79,7 +79,7 @@ def run_training(trainParams):
 
                 duration = time.time() - start_time
                 print ('%s_run_%d: TRAIN epoch %d, %d/%d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
-                       (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_train, 1.0/duration, loss_value, top1_value, top5_value) )
+                       (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_train - 1, 1.0/duration, loss_value, top1_value, top5_value) )
 
 
             # Evaluate
@@ -101,7 +101,7 @@ def run_training(trainParams):
 
                 duration = time.time() - start_time
                 print('%s_run_%d: TEST epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
-                      (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_eval, 1.0/duration, loss_value, top1_value, top5_value))
+                      (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_eval - 1, 1.0/duration, loss_value, top1_value, top5_value))
 
 
             # Save a checkpoint
