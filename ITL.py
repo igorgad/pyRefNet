@@ -46,12 +46,7 @@ def ncc(x,y,marray,s):
 
             return tf.reduce_mean(gkernel(tf.gather(x,nx,axis=1), tf.gather(y,ny,axis=1), s), 1)
 
-        mb = tf.unstack(marray)
-        nccb = []
-        for m in mb:
-            nccb.append(nloop(m))
-
-        return tf.transpose(tf.stack(nccb), [1,0])
+        return tf.transpose(tf.map_fn(lambda m: nloop(m), marray, dtype=tf.float32), [1,0])
 
 
 def ncclayer(ins,marray,Sigma):
@@ -68,7 +63,8 @@ def ncclayer(ins,marray,Sigma):
     sx = tf.reshape(x, [batchsize * nwin, N])
     sy = tf.reshape(y, [batchsize * nwin, N])
 
-    nccr = tf.expand_dims(ncc(sx, sy, marray, Sigma), dim=2)
+    nccr = ncc(sx, sy, marray, Sigma)
+    nccr = tf.expand_dims(nccr, dim=2)
     nccr = tf.image.per_image_standardization(nccr)
 
     return tf.reshape(nccr, [batchsize, nwin, marray.size, 1])
