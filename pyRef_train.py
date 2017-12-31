@@ -17,7 +17,6 @@ def placeholder_inputs(batch_size):
 
 def fill_feed_dict(mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl):
     # TODO: Optimize dataset access function.
-
     ins_feed = np.transpose(np.array([mmap[itm][0] for itm in batch_ids]), [0,2,3,1]) # NEWS: Set [bsize,nwin,N,nsigs]
     lbs_feed = np.array([mmap[itm][1] for itm in batch_ids]) + 80
 
@@ -81,7 +80,6 @@ def run_training(trainParams):
                 print ('%s_run_%d: TRAIN epoch %d, %d/%d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
                        (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_train - 1, 1.0/duration, loss_value, top1_value, top5_value) )
 
-
             # Evaluate
             for bthc in range(nsteps_eval):
                 batch_ids = np.random.choice(trainParams.evalIds, trainParams.batch_size)
@@ -102,7 +100,6 @@ def run_training(trainParams):
                 duration = time.time() - start_time
                 print('%s_run_%d: TEST epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
                       (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_eval - 1, 1.0/duration, loss_value, top1_value, top5_value))
-
 
             # Save a checkpoint
             if (epoch + 1) % 10 == 0 or (epoch + 1) == trainParams.numEpochs:
