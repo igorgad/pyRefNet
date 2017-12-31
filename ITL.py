@@ -64,7 +64,9 @@ def ncclayer(ins,marray,Sigma):
     sy = tf.reshape(y, [batchsize * nwin, N])
 
     nccr = ncc(sx, sy, marray, Sigma)
-    nccr = tf.expand_dims(nccr, dim=2)
-    nccr = tf.image.per_image_standardization(nccr)
+    nccr = tf.reshape(nccr, [batchsize, nwin, marray.size])
+    nccr = tf.expand_dims(nccr, dim=3)
 
-    return tf.reshape(nccr, [batchsize, nwin, marray.size, 1])
+    nccr = tf.map_fn(lambda b: tf.image.per_image_standardization(b), nccr)
+
+    return nccr

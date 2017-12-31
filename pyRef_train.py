@@ -91,7 +91,7 @@ def run_training(trainParams):
 
                 feed_dict = fill_feed_dict(trainParams.mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl)
 
-                if bthc == nsteps_train - 1:
+                if bthc == nsteps_eval - 1:
                     summary_str, loss_value, top1_value, top5_value = sess.run([summary, loss, eval_top1, eval_top5], feed_dict=feed_dict)
                     test_writer.add_summary(summary_str, epoch)
                     test_writer.flush()
