@@ -21,8 +21,7 @@ shapeconv2 = [8, 1, 1, 64]
 shapeconv3 = [4, 1, 64, 32]
 shapeconv4 = [4, 1, 32, 16]
 
-fc1_nhidden = 4096
-fc2_nhidden = 4096
+fc1_nhidden = nwin * marray.size // 2
 nclass = len(marray)
 ##########################
 
@@ -65,15 +64,11 @@ def inference(ins, keep_prob):
         bc2 =  tf.Variable(np.zeros(shapeconv2[3]).astype(np.float32))
 
         conv2 = tf.nn.relu( tf.nn.conv2d(ccc1, wc2, strides=[1,1,1,1], padding='SAME') + bc2 )
+        pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
+        drop2 = tf.nn.dropout(pool2, keep_prob)
 
         tf.summary.histogram('wc2-gram', wc2)
         tf.summary.histogram('bc2-gram', bc2)
-
-    with tf.name_scope('pool_2'):
-        pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
-
-    with tf.name_scope('dropout_conv2'):
-        drop2 = tf.nn.dropout(pool2, keep_prob)
 
     # Conv 3 Layer
     with tf.name_scope('conv_3'):
@@ -81,15 +76,11 @@ def inference(ins, keep_prob):
         bc3 =  tf.Variable(np.zeros(shapeconv3[3]).astype(np.float32))
 
         conv3 = tf.nn.relu( tf.nn.conv2d(drop2, wc3, strides=[1,1,1,1], padding='SAME') + bc3 )
+        pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
+        drop3 = tf.nn.dropout(pool3, keep_prob)
 
         tf.summary.histogram('wc3-gram', wc3)
         tf.summary.histogram('bc3-gram', bc3)
-
-    with tf.name_scope('pool_3'):
-        pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
-
-    with tf.name_scope('dropout_conv3'):
-        drop3 = tf.nn.dropout(pool3, keep_prob)
 
     # Conv 4 Layer
     with tf.name_scope('conv_4'):
@@ -97,19 +88,14 @@ def inference(ins, keep_prob):
         bc4 =  tf.Variable(np.zeros(shapeconv4[3]).astype(np.float32))
 
         conv4 = tf.nn.relu( tf.nn.conv2d(drop3, wc4, strides=[1,1,1,1], padding='SAME') + bc4 )
+        pool4 = tf.nn.max_pool(conv4, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
+        drop4 = tf.nn.dropout(pool4, keep_prob)
 
         tf.summary.histogram('wc4-gram', wc4)
         tf.summary.histogram('bc4-gram', bc4)
 
-    with tf.name_scope('pool_4'):
-        pool4 = tf.nn.max_pool(conv4, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
-
-    with tf.name_scope('dropout_conv4'):
-        drop4 = tf.nn.dropout(pool4, keep_prob)
-
     #Flatten tensors
-    fcshape = np.int32([-1, nwin/8 * marray.size * shapeconv4[3]])
-
+    fcshape = np.int32([-1, nwin / 8 * marray.size * shapeconv4[3]])
     with tf.name_scope('flattening'):
         flat4 = tf.reshape(drop4, fcshape)
 
@@ -119,32 +105,17 @@ def inference(ins, keep_prob):
         bfc1 =  tf.Variable(np.zeros(fc1_nhidden).astype(np.float32))
 
         fc1 = tf.nn.relu(tf.matmul(flat4, wfc1) + bfc1)
+        dropfc1 = tf.nn.dropout(fc1, keep_prob)
 
         tf.summary.histogram('wfc1-gram', wfc1)
         tf.summary.histogram('bfc1-gram', bfc1)
 
-    with tf.name_scope('dropout_fc1'):
-        dropfc1 = tf.nn.dropout(fc1, keep_prob)
-
-    # FC 2 Layer
-    with tf.name_scope('fc_2'):
-        wfc2 = tf.Variable( tf.truncated_normal(shape=[fc1_nhidden,fc2_nhidden], stddev=0.1) )
-        bfc2 =  tf.Variable(np.zeros(fc2_nhidden).astype(np.float32))
-
-        fc2 = tf.nn.relu(tf.matmul(dropfc1, wfc2) + bfc2)
-
-        tf.summary.histogram('wfc2-gram', wfc2)
-        tf.summary.histogram('bfc2-gram', bfc2)
-
-    with tf.name_scope('dropout_fc2'):
-        dropfc2 = tf.nn.dropout(fc2, keep_prob)
-
     # Logits Layer
     with tf.name_scope('logits'):
-        wl = tf.Variable(tf.truncated_normal(shape=[fc2_nhidden,nclass], stddev=0.1))
+        wl = tf.Variable(tf.truncated_normal(shape=[fc1_nhidden,nclass], stddev=0.1))
         bl = tf.Variable(np.zeros(nclass).astype(np.float32))
 
-        logits = tf.matmul(dropfc2, wl) + bl
+        logits = tf.matmul(dropfc1, wl) + bl
 
     tf.summary.image('logits', tf.expand_dims(tf.expand_dims(logits, axis=0), axis=3))
     return logits

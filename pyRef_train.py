@@ -66,22 +66,20 @@ def run_training(trainParams):
                 feed_dict = fill_feed_dict(trainParams.mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl)
 
                 # Log runtime statistics. One per epoch
-                if bthc == 100:
+                if bthc == nsteps_train - 1:
                     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                     run_metadata = tf.RunMetadata()
                     summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, loss, eval_top1, eval_top5],
                                                                                   feed_dict=feed_dict, options=run_options, run_metadata=run_metadata)
                     train_writer.add_run_metadata(run_metadata, 'epoch %d' % epoch)
-                    train_writer.add_summary(summary_str, epoch * nsteps_train + bthc)
+                    train_writer.add_summary(summary_str, epoch )
                     train_writer.flush()
                 else:
-                    summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, loss, eval_top1, eval_top5], feed_dict=feed_dict)
-                    train_writer.add_summary(summary_str, epoch * nsteps_train + bthc)
-                    train_writer.flush()
+                     _, loss_value, top1_value, top5_value = sess.run([train_op, loss, eval_top1, eval_top5], feed_dict=feed_dict)
 
                 duration = time.time() - start_time
                 print ('%s_run_%d: TRAIN epoch %d, %d/%d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
-                       (trainParams.runName, trainParams.n, epoch, bthc, nsteps_train, 1.0/duration, loss_value, top1_value, top5_value) )
+                       (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_train, 1.0/duration, loss_value, top1_value, top5_value) )
 
 
             # Evaluate
@@ -92,14 +90,18 @@ def run_training(trainParams):
                 start_time = time.time()
 
                 feed_dict = fill_feed_dict(trainParams.mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl)
-                summary_str, loss_value, top1_value, top5_value = sess.run([summary, loss, eval_top1, eval_top5], feed_dict=feed_dict)
+
+                if bthc == nsteps_train - 1:
+                    summary_str, loss_value, top1_value, top5_value = sess.run([summary, loss, eval_top1, eval_top5], feed_dict=feed_dict)
+                    test_writer.add_summary(summary_str, epoch)
+                    test_writer.flush()
+                else:
+                    loss_value, top1_value, top5_value = sess.run([loss, eval_top1, eval_top5], feed_dict=feed_dict)
+
 
                 duration = time.time() - start_time
-
-                test_writer.add_summary(summary_str, epoch*nsteps_eval + bthc)
-                test_writer.flush()
                 print('%s_run_%d: TEST epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
-                      (trainParams.runName, trainParams.n, epoch, bthc, nsteps_eval, 1.0/duration, loss_value, top1_value, top5_value))
+                      (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_eval, 1.0/duration, loss_value, top1_value, top5_value))
 
 
             # Save a checkpoint
