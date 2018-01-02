@@ -53,7 +53,7 @@ def inference(ins, keep_prob):
     with tf.name_scope('ccc'):
         Sigma = tf.Variable(np.float32(sigma), trainable=True)
 
-        ccc1 = ITL.ncclayer(conv1, marray, Sigma)
+        ccc1 = ITL.ncc_layer(conv1, marray, Sigma)
 
         tf.summary.image('ccc_img', ccc1)
         tf.summary.scalar('sigma', Sigma)
