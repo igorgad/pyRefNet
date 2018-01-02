@@ -38,16 +38,14 @@ def gkernel(x, y, s):
 
 def gspace(x,y,s):
     with tf.name_scope('gspace'):
-
         def rloop(i):
-            return tf.map_fn(lambda j: gkernel(tf.gather(x,j,axis=1), tf.gather(y,i,axis=1), s), tf.range(tf.shape(x)[1]), dtype=tf.float32)
+            return gkernel(tf.gather(x, tf.range(tf.shape(x)[1]), axis=1), tf.expand_dims(tf.gather(y, i, axis=1), dim=1), s)
 
-        return tf.map_fn(rloop, tf.range(tf.shape(y)[1]), dtype=tf.float32)
+        return tf.transpose(tf.map_fn(rloop, tf.range(tf.shape(y)[1]), dtype=tf.float32), [1, 0, 2])
 
 
 def ncc(x,y,marray,s):
     with tf.name_scope('ncc') as scope:
-
         def nloop(m):
             N = tf.shape(x)[1]
             nx = tf.range(start=tf.abs(tf.minimum(0, m)), limit=tf.subtract(N + 1, tf.abs(m)))
