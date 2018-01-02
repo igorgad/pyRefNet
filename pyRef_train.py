@@ -58,7 +58,7 @@ def run_training(trainParams):
             # Train
             for bthc in range(nsteps_train):
                 batch_ids = np.random.choice(trainParams.trainIds,trainParams.batch_size)
-                keep_prob = 0.5 #Dynamic control of dropout rate
+                keep_prob = 1 #Dynamic control of dropout rate
 
                 start_time = time.time()
 
