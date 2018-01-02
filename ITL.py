@@ -36,6 +36,15 @@ def gkernel(x, y, s):
     return tf.divide(1.0,tf.sqrt(tf.multiply(tf.multiply(2.0,np.pi),s))) * tf.exp( tf.divide(tf.multiply(-1.0,tf.pow(tf.subtract(x,y), 2.0)),tf.multiply(2.0,tf.pow(s, 2.0))) )
 
 
+def gspace(x,y,s):
+    with tf.name_scope('gspace'):
+
+        def rloop(i):
+            return tf.map_fn(lambda j: gkernel(tf.gather(x,j,axis=1), tf.gather(y,i,axis=1), s), tf.range(tf.shape(x)[1]), dtype=tf.float32)
+
+        return tf.map_fn(rloop, tf.range(tf.shape(y)[1]), dtype=tf.float32)
+
+
 def ncc(x,y,marray,s):
     with tf.name_scope('ncc') as scope:
 
