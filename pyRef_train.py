@@ -53,25 +53,27 @@ def run_training(trainParams):
         nsteps_train = np.int32(np.floor(ntrain / trainParams.batch_size))
         nsteps_eval = np.int32(np.floor(neval / trainParams.batch_size))
 
+
         # Start the training loop.
         for epoch in range(trainParams.numEpochs):
             # Train
             for bthc in range(nsteps_train):
                 batch_ids = np.random.choice(trainParams.trainIds,trainParams.batch_size)
-                keep_prob = 1 #Dynamic control of dropout rate
+                keep_prob = 0.7 #Dynamic control of dropout rate
 
                 start_time = time.time()
 
                 feed_dict = fill_feed_dict(trainParams.mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl)
 
-                # Log runtime statistics. One per epoch
-                if bthc == nsteps_train - 1:
+                # Log training runtime statistics. One per epoch (last step)
+                if np.mod(bthc, nsteps_train // trainParams.sumPerEpoch) == 0:
                     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                     run_metadata = tf.RunMetadata()
                     summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, loss, eval_top1, eval_top5],
                                                                                   feed_dict=feed_dict, options=run_options, run_metadata=run_metadata)
-                    train_writer.add_run_metadata(run_metadata, 'epoch %d' % epoch)
-                    train_writer.add_summary(summary_str, epoch )
+
+                    train_writer.add_run_metadata(run_metadata, 'epoch %d' % (trainParams.sumPerEpoch * epoch + bthc // (nsteps_train // trainParams.sumPerEpoch)) )
+                    train_writer.add_summary(summary_str, trainParams.sumPerEpoch * epoch + bthc // (nsteps_train // trainParams.sumPerEpoch) )
                     train_writer.flush()
                 else:
                      _, loss_value, top1_value, top5_value = sess.run([train_op, loss, eval_top1, eval_top5], feed_dict=feed_dict)
@@ -89,9 +91,10 @@ def run_training(trainParams):
 
                 feed_dict = fill_feed_dict(trainParams.mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl)
 
-                if bthc == nsteps_eval - 1:
+                # Log testing runtime statistics. One per epoch (last step)
+                if np.mod(bthc, nsteps_eval // trainParams.sumPerEpoch) == 0:
                     summary_str, loss_value, top1_value, top5_value = sess.run([summary, loss, eval_top1, eval_top5], feed_dict=feed_dict)
-                    test_writer.add_summary(summary_str, epoch)
+                    test_writer.add_summary(summary_str, trainParams.sumPerEpoch * epoch + bthc // (nsteps_eval // trainParams.sumPerEpoch) )
                     test_writer.flush()
                 else:
                     loss_value, top1_value, top5_value = sess.run([loss, eval_top1, eval_top5], feed_dict=feed_dict)

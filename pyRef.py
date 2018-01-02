@@ -65,7 +65,7 @@ def inference(ins, keep_prob):
 
         conv2 = tf.nn.relu( tf.nn.conv2d(ccc1, wc2, strides=[1,1,1,1], padding='SAME') + bc2 )
         pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
-        drop2 = tf.nn.dropout(pool2, keep_prob)
+        # drop2 = tf.nn.dropout(pool2, keep_prob)
 
         tf.summary.histogram('wc2-gram', wc2)
         tf.summary.histogram('bc2-gram', bc2)
@@ -75,9 +75,9 @@ def inference(ins, keep_prob):
         wc3 = tf.Variable( tf.truncated_normal(shape=shapeconv3, stddev=0.1) )
         bc3 =  tf.Variable(np.zeros(shapeconv3[3]).astype(np.float32))
 
-        conv3 = tf.nn.relu( tf.nn.conv2d(drop2, wc3, strides=[1,1,1,1], padding='SAME') + bc3 )
+        conv3 = tf.nn.relu( tf.nn.conv2d(pool2, wc3, strides=[1,1,1,1], padding='SAME') + bc3 )
         pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
-        drop3 = tf.nn.dropout(pool3, keep_prob)
+        # drop3 = tf.nn.dropout(pool3, keep_prob)
 
         tf.summary.histogram('wc3-gram', wc3)
         tf.summary.histogram('bc3-gram', bc3)
@@ -87,9 +87,9 @@ def inference(ins, keep_prob):
         wc4 = tf.Variable( tf.truncated_normal(shape=shapeconv4, stddev=0.1) )
         bc4 =  tf.Variable(np.zeros(shapeconv4[3]).astype(np.float32))
 
-        conv4 = tf.nn.relu( tf.nn.conv2d(drop3, wc4, strides=[1,1,1,1], padding='SAME') + bc4 )
+        conv4 = tf.nn.relu( tf.nn.conv2d(pool3, wc4, strides=[1,1,1,1], padding='SAME') + bc4 )
         pool4 = tf.nn.max_pool(conv4, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
-        drop4 = tf.nn.dropout(pool4, keep_prob)
+        # drop4 = tf.nn.dropout(pool4, keep_prob)
 
         tf.summary.histogram('wc4-gram', wc4)
         tf.summary.histogram('bc4-gram', bc4)
@@ -97,7 +97,7 @@ def inference(ins, keep_prob):
     #Flatten tensors
     fcshape = np.int32([-1, nwin / 8 * marray.size * shapeconv4[3]])
     with tf.name_scope('flattening'):
-        flat4 = tf.reshape(drop4, fcshape)
+        flat4 = tf.reshape(pool4, fcshape)
 
     # FC 1 Layer
     with tf.name_scope('fc_1'):
