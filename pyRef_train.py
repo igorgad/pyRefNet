@@ -59,7 +59,7 @@ def run_training(trainParams):
             # Train
             for bthc in range(nsteps_train):
                 batch_ids = np.random.choice(trainParams.trainIds,trainParams.batch_size)
-                sum_step = trainParams.sumPerEpoch * epoch + bthc // (nsteps_train // trainParams.sumPerEpoch)
+                sum_step = trainParams.sumPerEpoch * epoch + bthc // np.ceil(nsteps_train / trainParams.sumPerEpoch)
 
                 keep_prob = 0.7 #Dynamic control of dropout rate
 
@@ -68,7 +68,7 @@ def run_training(trainParams):
                 feed_dict = fill_feed_dict(trainParams.mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl)
 
                 # Log training runtime statistics. One per epoch (last step)
-                if np.mod(bthc, nsteps_train // trainParams.sumPerEpoch) == 0:
+                if np.mod(bthc, np.ceil(nsteps_train / trainParams.sumPerEpoch)) == 0:
                     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                     run_metadata = tf.RunMetadata()
                     summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, loss, eval_top1, eval_top5],
@@ -87,7 +87,7 @@ def run_training(trainParams):
             # Evaluate
             for bthc in range(nsteps_eval):
                 batch_ids = np.random.choice(trainParams.evalIds, trainParams.batch_size)
-                sum_step = trainParams.sumPerEpoch * epoch + bthc // (nsteps_eval // trainParams.sumPerEpoch)
+                sum_step = trainParams.sumPerEpoch * epoch + bthc // np.ceil(nsteps_eval / trainParams.sumPerEpoch)
 
                 keep_prob = 1.0  # Dynamic control of dropout rate
 
@@ -96,7 +96,7 @@ def run_training(trainParams):
                 feed_dict = fill_feed_dict(trainParams.mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl)
 
                 # Log testing runtime statistics. One per epoch (last step)
-                if np.mod(bthc, nsteps_eval // trainParams.sumPerEpoch) == 0:
+                if np.mod(bthc, np.ceil(nsteps_eval / trainParams.sumPerEpoch)) == 0:
                     summary_str, loss_value, top1_value, top5_value = sess.run([summary, loss, eval_top1, eval_top5], feed_dict=feed_dict)
                     test_writer.add_summary(summary_str, sum_step )
                     test_writer.flush()
