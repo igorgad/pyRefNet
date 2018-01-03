@@ -22,7 +22,7 @@ trainParams.batch_size  = 32
 
 trainParams.combSets    = [4, 5]
 
-trainParams.datasetfile = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/REFTEST_N' + str(pyRef.N) + '_NW' + str(pyRef.nwin) + '_XPAN10_medleyVBRdataset.mat'
+trainParams.datasetfile = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/REFTEST_N' + str(pyRef.N) + '_NW' + str(pyRef.nwin) + '_XPAN40_medleyVBRdataset.mat'
 trainParams.log_root     = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/tensorlogs/'
 
 trainParams.runName      = "{}_N{}_NW{}".format('initTest' , pyRef.N, pyRef.nwin)
@@ -38,8 +38,8 @@ ncomb = np.int32(np.fromfile(trainParams.dtf, dtype=np.int32, count=1)[0] - 1)
 combClass = np.int32(np.fromfile(trainParams.dtf, dtype=np.int32, count=ncomb))
 
 cid = np.array(np.nonzero(np.in1d(combClass, trainParams.combSets) * 1))[0][:]
-trainParams.trainIds = np.random.choice(cid, int(cid.size*0.8))
-trainParams.evalIds  = np.random.choice(np.setdiff1d(cid, trainParams.trainIds), int(cid.size*0.2))
+trainParams.trainIds = np.random.choice(cid, int(cid.size * 0.8))
+trainParams.evalIds  = np.random.choice(np.setdiff1d(cid, trainParams.trainIds), int(cid.size * 0.2))
 
 trainParams.mmap = np.memmap(trainParams.datasetfile, dtype=np.dtype([('ins', (np.float32, (pyRef.nsigs, pyRef.nwin, pyRef.N))), ('lbls', np.int32)]),
                              mode='r', offset=ncomb.nbytes+combClass.nbytes)
