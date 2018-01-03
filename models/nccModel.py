@@ -2,7 +2,7 @@
 
 import tensorflow as tf
 import numpy as np
-import ITL
+import models.ITL as ITL
 
 
 # TODO - encapsulate network params into a netparam dict

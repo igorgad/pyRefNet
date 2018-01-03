@@ -4,11 +4,11 @@ import time
 
 import tensorflow as tf
 import numpy as np
-import pyRef
+import models.nccModel as nccModel
 
 
 def placeholder_inputs(batch_size):
-    ins_pl = tf.placeholder(tf.float32, shape=[batch_size, pyRef.nwin, pyRef.N, pyRef.nsigs])
+    ins_pl = tf.placeholder(tf.float32, shape=[batch_size, nccModel.nwin, nccModel.N, nccModel.nsigs])
     lbs_pl = tf.placeholder(tf.int32, shape=[batch_size])
     keepp_pl = tf.placeholder(tf.float32)
 
@@ -31,10 +31,10 @@ def run_training(trainParams):
 
         ins_pl, lbs_pl, keepp_pl = placeholder_inputs( trainParams.batch_size )
 
-        logits = pyRef.inference(ins_pl, keepp_pl)
-        loss = pyRef.loss(logits, lbs_pl)
-        train_op = pyRef.training(loss, trainParams.lr, trainParams.momentum)
-        eval_top1, eval_top5 = pyRef.evaluation(logits, lbs_pl)
+        logits = nccModel.inference(ins_pl, keepp_pl)
+        loss = nccModel.loss(logits, lbs_pl)
+        train_op = nccModel.training(loss, trainParams.lr, trainParams.momentum)
+        eval_top1, eval_top5 = nccModel.evaluation(logits, lbs_pl)
 
         summary = tf.summary.merge_all()
 
