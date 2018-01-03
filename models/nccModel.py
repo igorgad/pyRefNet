@@ -12,7 +12,7 @@ nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
 
 marray = np.array(range(-80,80)).astype(np.int32) # marray vary from -80 -79 ... 79
-sigma = 1
+sigma = 0.5
 
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
