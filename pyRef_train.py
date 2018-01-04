@@ -25,6 +25,20 @@ def fill_feed_dict(mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl):
     return feed_dict
 
 
+def add_summaries(loss, eval1, eval5):
+    avg_loss, avg_loss_op = tf.contrib.metrics.streaming_mean(loss)
+    avg_top1, avg_top1_op = tf.contrib.metrics.streaming_mean(eval1)
+    avg_top5, avg_top5_op = tf.contrib.metrics.streaming_mean(eval5)
+
+    reset_op = tf.local_variables_initializer()
+
+    tf.summary.scalar('avg_loss', avg_loss)
+    tf.summary.scalar('avg_top1', avg_top1)
+    tf.summary.scalar('avg_top5', avg_top5)
+
+    return avg_loss_op, avg_top1_op, avg_top5_op, reset_op
+
+
 def run_training(trainParams):
 
     with tf.Graph().as_default():
@@ -35,6 +49,7 @@ def run_training(trainParams):
         loss = model.loss(logits, lbs_pl)
         train_op = model.training(loss, trainParams.lr, trainParams.momentum)
         eval_top1, eval_top5 = model.evaluation(logits, lbs_pl)
+        avg_loss_op, avg_top1_op, avg_top5_op, reset_op = add_summaries(loss, eval_top1, eval_top5)
 
         summary = tf.summary.merge_all()
 
@@ -45,7 +60,7 @@ def run_training(trainParams):
         train_writer = tf.summary.FileWriter(trainParams.log_dir + '/train', sess.graph)
         test_writer = tf.summary.FileWriter(trainParams.log_dir + '/test')
 
-        sess.run(init)
+        sess.run([init, reset_op])
 
         ntrain = trainParams.trainIds.size
         neval  = trainParams.evalIds.size
@@ -58,7 +73,7 @@ def run_training(trainParams):
         for epoch in range(trainParams.numEpochs):
             # Train
             for bthc in range(nsteps_train):
-                batch_ids = np.random.choice(trainParams.trainIds,trainParams.batch_size)
+                batch_ids = np.random.choice(trainParams.trainIds, trainParams.batch_size)
                 sum_step = trainParams.sumPerEpoch * epoch + bthc // np.ceil(nsteps_train / trainParams.sumPerEpoch)
 
                 keep_prob = 0.7 #Dynamic control of dropout rate
@@ -71,14 +86,16 @@ def run_training(trainParams):
                 if np.mod(bthc, np.ceil(nsteps_train / trainParams.sumPerEpoch)) == 0:
                     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                     run_metadata = tf.RunMetadata()
-                    summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, loss, eval_top1, eval_top5],
+                    summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op],
                                                                                   feed_dict=feed_dict, options=run_options, run_metadata=run_metadata)
 
                     train_writer.add_run_metadata(run_metadata, 'epoch %d' % sum_step )
                     train_writer.add_summary(summary_str, sum_step )
                     train_writer.flush()
+
+                    sess.run([reset_op])
                 else:
-                     _, loss_value, top1_value, top5_value = sess.run([train_op, loss, eval_top1, eval_top5], feed_dict=feed_dict)
+                     _, loss_value, top1_value, top5_value = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op], feed_dict=feed_dict)
 
                 duration = time.time() - start_time
                 print ('%s_run_%d: TRAIN epoch %d, %d/%d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
@@ -97,11 +114,13 @@ def run_training(trainParams):
 
                 # Log testing runtime statistics. One per epoch (last step)
                 if np.mod(bthc, np.ceil(nsteps_eval / trainParams.sumPerEpoch)) == 0:
-                    summary_str, loss_value, top1_value, top5_value = sess.run([summary, loss, eval_top1, eval_top5], feed_dict=feed_dict)
+                    summary_str, loss_value, top1_value, top5_value = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op], feed_dict=feed_dict)
                     test_writer.add_summary(summary_str, sum_step )
                     test_writer.flush()
+
+                    sess.run([reset_op])
                 else:
-                    loss_value, top1_value, top5_value = sess.run([loss, eval_top1, eval_top5], feed_dict=feed_dict)
+                    loss_value, top1_value, top5_value = sess.run([avg_loss_op, avg_top1_op, avg_top5_op], feed_dict=feed_dict)
 
 
                 duration = time.time() - start_time

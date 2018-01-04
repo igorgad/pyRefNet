@@ -130,7 +130,6 @@ def loss(logits, labels):
 
 
 def training(loss, learning_rate, momentum):
-    tf.summary.scalar('loss', loss)
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
     optimizer = tf.train.AdamOptimizer(learning_rate)
@@ -145,9 +144,6 @@ def evaluation(logits, labels):
 
     eval1 = tf.reduce_mean(tf.cast(correct1, tf.float32))
     eval5 = tf.reduce_mean(tf.cast(correct5, tf.float32))
-
-    tf.summary.scalar('top-1', eval1)
-    tf.summary.scalar('top-5', eval5)
 
     return eval1, eval5
 
