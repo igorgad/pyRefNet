@@ -8,7 +8,7 @@ def gkernel(x, y, s):
 
 
 def gspace(x,y,s):
-    with tf.name_scope('gspace'):
+    with tf.name_scope('gspace') as scope:
         def rloop(i):
             return gkernel(tf.gather(x, tf.range(tf.shape(x)[2]), axis=2), tf.expand_dims(tf.gather(y, i, axis=2), dim=2), s)
 
@@ -22,6 +22,7 @@ def gspace_layer(ins,Sigma):
     gsr = tf.image.per_image_standardization(gsr)
     gsr = tf.expand_dims(gsr, dim=3)
 
+    gsr.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 1])  # Fix lost dimensions
     return gsr
 
 
