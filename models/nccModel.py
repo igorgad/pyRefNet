@@ -95,7 +95,6 @@ def inference(ins, keep_prob):
         tf.summary.histogram('bc4-gram', bc4)
 
     #Flatten tensors
-    fcshape = np.int32([-1, nwin / 8 * marray.size * shapeconv4[3]])
     with tf.name_scope('flattening'):
         flat4 = tf.layers.flatten(pool4)
 
