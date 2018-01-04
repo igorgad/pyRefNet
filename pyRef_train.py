@@ -26,7 +26,7 @@ def fill_feed_dict(mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl):
 
 
 def add_summaries(loss, eval1, eval5):
-    with tf.name_scope('avg_summaries') as scope:
+    with tf.name_scope('summ') as scope:
         avg_loss, avg_loss_op = tf.contrib.metrics.streaming_mean(loss)
         avg_top1, avg_top1_op = tf.contrib.metrics.streaming_mean(eval1)
         avg_top5, avg_top5_op = tf.contrib.metrics.streaming_mean(eval5)
