@@ -26,15 +26,16 @@ def fill_feed_dict(mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl):
 
 
 def add_summaries(loss, eval1, eval5):
-    avg_loss, avg_loss_op = tf.contrib.metrics.streaming_mean(loss)
-    avg_top1, avg_top1_op = tf.contrib.metrics.streaming_mean(eval1)
-    avg_top5, avg_top5_op = tf.contrib.metrics.streaming_mean(eval5)
+    with tf.name_scope('avg_summaries') as scope:
+        avg_loss, avg_loss_op = tf.contrib.metrics.streaming_mean(loss)
+        avg_top1, avg_top1_op = tf.contrib.metrics.streaming_mean(eval1)
+        avg_top5, avg_top5_op = tf.contrib.metrics.streaming_mean(eval5)
 
-    reset_op = tf.local_variables_initializer()
+        reset_op = tf.local_variables_initializer()
 
-    tf.summary.scalar('avg_loss', avg_loss)
-    tf.summary.scalar('avg_top1', avg_top1)
-    tf.summary.scalar('avg_top5', avg_top5)
+        tf.summary.scalar('avg_loss', avg_loss)
+        tf.summary.scalar('avg_top1', avg_top1)
+        tf.summary.scalar('avg_top5', avg_top5)
 
     return avg_loss_op, avg_top1_op, avg_top5_op, reset_op
 
@@ -83,7 +84,7 @@ def run_training(trainParams):
                 feed_dict = fill_feed_dict(trainParams.mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl)
 
                 # Log training runtime statistics. One per epoch (last step)
-                if np.mod(bthc, np.ceil(nsteps_train / trainParams.sumPerEpoch)) == 0:
+                if np.mod(bthc, np.ceil(nsteps_train / trainParams.sumPerEpoch)) == 1:
                     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                     run_metadata = tf.RunMetadata()
                     summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op],
@@ -113,7 +114,7 @@ def run_training(trainParams):
                 feed_dict = fill_feed_dict(trainParams.mmap, batch_ids, keep_prob, ins_pl, lbs_pl, keepp_pl)
 
                 # Log testing runtime statistics. One per epoch (last step)
-                if np.mod(bthc, np.ceil(nsteps_eval / trainParams.sumPerEpoch)) == 0:
+                if np.mod(bthc, np.ceil(nsteps_eval / trainParams.sumPerEpoch)) == 1:
                     summary_str, loss_value, top1_value, top5_value = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op], feed_dict=feed_dict)
                     test_writer.add_summary(summary_str, sum_step )
                     test_writer.flush()
