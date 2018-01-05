@@ -114,7 +114,7 @@ def run_training(trainParams):
                     train_writer.add_summary(summary_str, sum_step )
                     train_writer.flush()
 
-                    sess.run([reset_op])
+                    # sess.run([reset_op])
                 else:
                      _, loss_value, top1_value, top5_value = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op],
                                                                       feed_dict={queue_selector: 0, keepp_pl: keep_prob})
@@ -139,7 +139,7 @@ def run_training(trainParams):
                     test_writer.add_summary(summary_str, sum_step )
                     test_writer.flush()
 
-                    sess.run([reset_op])
+                    # sess.run([reset_op])
                 else:
                     loss_value, top1_value, top5_value = sess.run([avg_loss_op, avg_top1_op, avg_top5_op],
                                                                   feed_dict={queue_selector: 1, keepp_pl: keep_prob})
