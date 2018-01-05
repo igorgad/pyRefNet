@@ -104,7 +104,7 @@ def run_training(trainParams):
                     start_time = time.time()
 
                     # Log training runtime statistics. One per epoch (last step)
-                    if np.mod(bthc, np.ceil(nsteps_train / trainParams.sumPerEpoch)) == 1:
+                    if np.mod(bthc, np.ceil(nsteps_train / trainParams.sumPerEpoch)) == trainParams.sumStepIndex:
                         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                         run_metadata = tf.RunMetadata()
                         summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op],
@@ -121,7 +121,7 @@ def run_training(trainParams):
 
                     duration = time.time() - start_time
                     print ('%s_run_%d: TRAIN epoch %d, %d/%d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
-                           (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_train - 1, 1.0/duration, loss_value, top1_value, top5_value) )
+                           (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_train - 1, trainParams.batch_size/duration, loss_value, top1_value, top5_value) )
 
                 # Evaluate
                 for bthc in range(nsteps_eval):
@@ -133,7 +133,7 @@ def run_training(trainParams):
                     start_time = time.time()
 
                     # Log testing runtime statistics. One per epoch (last step)
-                    if np.mod(bthc, np.ceil(nsteps_eval / trainParams.sumPerEpoch)) == 1:
+                    if np.mod(bthc, np.ceil(nsteps_eval / trainParams.sumPerEpoch)) == trainParams.sumStepIndex:
                         summary_str, loss_value, top1_value, top5_value = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op],
                                                                                    feed_dict={queue_selector: 1, keepp_pl: keep_prob})
                         test_writer.add_summary(summary_str, sum_step )
@@ -147,7 +147,7 @@ def run_training(trainParams):
 
                     duration = time.time() - start_time
                     print('%s_run_%d: TEST epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
-                          (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_eval - 1, 1.0/duration, loss_value, top1_value, top5_value))
+                          (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_eval - 1, trainParams.batch_size/duration, loss_value, top1_value, top5_value))
 
                 # Save a checkpoint
                 if (epoch + 1) % 10 == 0 or (epoch + 1) == trainParams.numEpochs:
@@ -155,7 +155,7 @@ def run_training(trainParams):
                     saver.save(sess, checkpoint_file, global_step=epoch)
 
         finally:
-            print ('exiting...')
+            print ('\n\ncleaning...')
             coord.request_stop()
             coord.join(threads)
             sess.close()

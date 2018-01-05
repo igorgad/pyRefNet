@@ -18,7 +18,7 @@ trainParams.momentum    = 0.6 # Not used
 trainParams.weigthDecay = 0.0 # Not used
 
 trainParams.numEpochs   = 200
-trainParams.batch_size  = 16
+trainParams.batch_size  = 24
 
 trainParams.combSets    = [4, 5]
 
@@ -29,6 +29,7 @@ trainParams.runName      = "{}_N{}_NW{}".format('initTest', model.N, model.nwin)
 trainParams.n = sum(1 for f in os.listdir(trainParams.log_root) if os.path.isdir(os.path.join(trainParams.log_root, f)))
 trainParams.log_dir = "{}{}_run_{}".format(trainParams.log_root, trainParams.runName, trainParams.n+1)
 trainParams.sumPerEpoch = 4
+trainParams.sumStepIndex = 10
 
 print ('logdir ' + trainParams.log_dir)
 
