@@ -28,7 +28,7 @@ def add_queues(batch_size, train_ids, eval_ids, selector_pl):
         q_eval = tf.FIFOQueue(3, dtypes=[tf.float32, tf.int32], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size]])
 
         q_train_op = q_train.enqueue(tf_get_batch(train_ids, batch_size))
-        q_eval_op = q_train.enqueue(tf_get_batch(eval_ids, batch_size))
+        q_eval_op = q_eval.enqueue(tf_get_batch(eval_ids, batch_size))
 
         qr_train = tf.train.QueueRunner(q_train, [q_train_op] * 3)
         qr_eval = tf.train.QueueRunner(q_eval, [q_eval_op] * 3)
@@ -40,7 +40,7 @@ def add_queues(batch_size, train_ids, eval_ids, selector_pl):
 
         ins, lbs = q.dequeue()
 
-    return ins, lbs,
+    return ins, lbs
 
 def add_summaries(loss, eval1, eval5):
     with tf.name_scope('summ') as scope:
@@ -92,70 +92,73 @@ def run_training(trainParams):
         nsteps_train = np.int32(np.floor(ntrain / trainParams.batch_size))
         nsteps_eval = np.int32(np.floor(neval / trainParams.batch_size))
 
+        try:
+            # Start the training loop.
+            for epoch in range(trainParams.numEpochs):
+                # Train
+                for bthc in range(nsteps_train):
+                    sum_step = trainParams.sumPerEpoch * epoch + bthc // np.ceil(nsteps_train / trainParams.sumPerEpoch)
 
-        # Start the training loop.
-        for epoch in range(trainParams.numEpochs):
-            # Train
-            for bthc in range(nsteps_train):
-                sum_step = trainParams.sumPerEpoch * epoch + bthc // np.ceil(nsteps_train / trainParams.sumPerEpoch)
+                    keep_prob = 0.7 #Dynamic control of dropout rate
 
-                keep_prob = 0.7 #Dynamic control of dropout rate
+                    start_time = time.time()
 
-                start_time = time.time()
+                    # Log training runtime statistics. One per epoch (last step)
+                    if np.mod(bthc, np.ceil(nsteps_train / trainParams.sumPerEpoch)) == 1:
+                        run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                        run_metadata = tf.RunMetadata()
+                        summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op],
+                                                                                      feed_dict={queue_selector: 0, keepp_pl: keep_prob}, options=run_options, run_metadata=run_metadata)
 
-                # Log training runtime statistics. One per epoch (last step)
-                if np.mod(bthc, np.ceil(nsteps_train / trainParams.sumPerEpoch)) == 1:
-                    run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-                    run_metadata = tf.RunMetadata()
-                    summary_str, _, loss_value, top1_value, top5_value = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op],
-                                                                                  feed_dict={queue_selector: 0, keepp_pl: keep_prob}, options=run_options, run_metadata=run_metadata)
+                        train_writer.add_run_metadata(run_metadata, 'epoch %d' % sum_step )
+                        train_writer.add_summary(summary_str, sum_step )
+                        train_writer.flush()
 
-                    train_writer.add_run_metadata(run_metadata, 'epoch %d' % sum_step )
-                    train_writer.add_summary(summary_str, sum_step )
-                    train_writer.flush()
+                        sess.run([reset_op])
+                    else:
+                         _, loss_value, top1_value, top5_value = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op],
+                                                                          feed_dict={queue_selector: 0, keepp_pl: keep_prob})
 
-                    # sess.run([reset_op])
-                else:
-                     _, loss_value, top1_value, top5_value = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op],
-                                                                      feed_dict={queue_selector: 0, keepp_pl: keep_prob})
+                    duration = time.time() - start_time
+                    print ('%s_run_%d: TRAIN epoch %d, %d/%d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
+                           (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_train - 1, 1.0/duration, loss_value, top1_value, top5_value) )
 
-                duration = time.time() - start_time
-                print ('%s_run_%d: TRAIN epoch %d, %d/%d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
-                       (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_train - 1, 1.0/duration, loss_value, top1_value, top5_value) )
+                # Evaluate
+                for bthc in range(nsteps_eval):
+                    batch_ids = np.random.choice(trainParams.evalIds, trainParams.batch_size)
+                    sum_step = trainParams.sumPerEpoch * epoch + bthc // np.ceil(nsteps_eval / trainParams.sumPerEpoch)
 
-            # Evaluate
-            for bthc in range(nsteps_eval):
-                batch_ids = np.random.choice(trainParams.evalIds, trainParams.batch_size)
-                sum_step = trainParams.sumPerEpoch * epoch + bthc // np.ceil(nsteps_eval / trainParams.sumPerEpoch)
+                    keep_prob = 1.0  # Dynamic control of dropout rate
 
-                keep_prob = 1.0  # Dynamic control of dropout rate
+                    start_time = time.time()
 
-                start_time = time.time()
+                    # Log testing runtime statistics. One per epoch (last step)
+                    if np.mod(bthc, np.ceil(nsteps_eval / trainParams.sumPerEpoch)) == 1:
+                        summary_str, loss_value, top1_value, top5_value = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op],
+                                                                                   feed_dict={queue_selector: 1, keepp_pl: keep_prob})
+                        test_writer.add_summary(summary_str, sum_step )
+                        test_writer.flush()
 
-                # Log testing runtime statistics. One per epoch (last step)
-                if np.mod(bthc, np.ceil(nsteps_eval / trainParams.sumPerEpoch)) == 1:
-                    summary_str, loss_value, top1_value, top5_value = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op],
-                                                                               feed_dict={queue_selector: 1, keepp_pl: keep_prob})
-                    test_writer.add_summary(summary_str, sum_step )
-                    test_writer.flush()
-
-                    # sess.run([reset_op])
-                else:
-                    loss_value, top1_value, top5_value = sess.run([avg_loss_op, avg_top1_op, avg_top5_op],
-                                                                  feed_dict={queue_selector: 1, keepp_pl: keep_prob})
+                        sess.run([reset_op])
+                    else:
+                        loss_value, top1_value, top5_value = sess.run([avg_loss_op, avg_top1_op, avg_top5_op],
+                                                                      feed_dict={queue_selector: 1, keepp_pl: keep_prob})
 
 
-                duration = time.time() - start_time
-                print('%s_run_%d: TEST epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
-                      (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_eval - 1, 1.0/duration, loss_value, top1_value, top5_value))
+                    duration = time.time() - start_time
+                    print('%s_run_%d: TEST epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
+                          (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_eval - 1, 1.0/duration, loss_value, top1_value, top5_value))
 
-            # Save a checkpoint
-            if (epoch + 1) % 10 == 0 or (epoch + 1) == trainParams.numEpochs:
-                checkpoint_file = os.path.join(trainParams.log_dir, 'model.ckpt')
-                saver.save(sess, checkpoint_file, global_step=epoch)
+                # Save a checkpoint
+                if (epoch + 1) % 10 == 0 or (epoch + 1) == trainParams.numEpochs:
+                    checkpoint_file = os.path.join(trainParams.log_dir, 'model.ckpt')
+                    saver.save(sess, checkpoint_file, global_step=epoch)
 
-        coord.request_stop()
-        coord.join(threads)
+        finally:
+            print ('exiting...')
+            coord.request_stop()
+            coord.join(threads)
+            sess.close()
 
 
 def runExperiment(trainParams):
