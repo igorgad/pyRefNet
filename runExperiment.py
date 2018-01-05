@@ -41,7 +41,7 @@ cid = np.array(np.nonzero(np.in1d(combClass, trainParams.combSets) * 1))[0][:]
 trainParams.trainIds = np.random.choice(cid, int(cid.size * 0.8))
 trainParams.evalIds  = np.random.choice(np.setdiff1d(cid, trainParams.trainIds), int(cid.size * 0.2))
 
-trainParams.mmap = np.memmap(trainParams.datasetfile, dtype=np.dtype([('ins', (np.float32, (model.nsigs, model.nwin, model.N))), ('lbls', np.int32)]),
+pyRef_train.mmap = np.memmap(trainParams.datasetfile, dtype=np.dtype([('ins', (np.float32, (model.nsigs, model.nwin, model.N))), ('lbls', np.int32)]),
                              mode='r', offset=ncomb.nbytes+combClass.nbytes)
 
 # Run experiments
