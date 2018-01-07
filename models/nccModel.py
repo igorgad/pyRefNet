@@ -145,6 +145,6 @@ def evaluation(logits, labels):
     eval1 = tf.reduce_mean(tf.cast(correct1, tf.float32))
     eval5 = tf.reduce_mean(tf.cast(correct5, tf.float32))
 
-    return eval1, eval5
+    return eval1, eval5, correct1, correct5
 
 
