@@ -62,14 +62,11 @@ def add_summaries(loss, eval1, eval5):
 
 
 def add_tables(correct1, correct5, typecombs):
-    top1_typecomb = tf.gather(typecombs, tf.where(correct1))
-    top5_typecomb = tf.gather(typecombs, tf.where(correct5))
-
     top1_typecomb_table = tf.contrib.lookup.MutableHashTable(tf.string, tf.float32, 0)
     top5_typecomb_table = tf.contrib.lookup.MutableHashTable(tf.string, tf.float32, 0)
 
-    update_top1_typecomb_table = top1_typecomb_table.insert(top1_typecomb, tf.divide(tf.add(top1_typecomb_table.lookup(top1_typecomb), 1), 2))
-    update_top5_typecomb_table = top5_typecomb_table.insert(top5_typecomb, tf.divide(tf.add(top5_typecomb_table.lookup(top5_typecomb), 1), 2))
+    update_top1_typecomb_table = top1_typecomb_table.insert(typecombs, tf.divide(tf.add(top1_typecomb_table.lookup(typecombs), tf.cast(correct1, tf.float32)), 2))
+    update_top5_typecomb_table = top5_typecomb_table.insert(typecombs, tf.divide(tf.add(top5_typecomb_table.lookup(typecombs), tf.cast(correct5, tf.float32)), 2))
 
     export_top1_typecomb_table = top1_typecomb_table.export()
     export_top5_typecomb_table = top5_typecomb_table.export()
