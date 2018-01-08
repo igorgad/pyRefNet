@@ -35,19 +35,17 @@ print ('logdir ' + trainParams.log_dir)
 # Prepare DATASET Access and choose random examples from the specified classess to fill train and eval indexes
 trainParams.dtf = open(trainParams.datasetfile, 'r')
 ncomb = np.int32(np.fromfile(trainParams.dtf, dtype=np.int32, count=1)[0])
-print ('runExperiment: found %d total combinations...' % ncomb)
-
 combClass = np.int32(np.fromfile(trainParams.dtf, dtype=np.int32, count=ncomb))
 
 cid = np.array(np.nonzero(np.in1d(combClass, trainParams.combSets) * 1))[0][:]
 trainParams.trainIds = np.random.choice(cid, int(cid.size * 0.8))
 trainParams.evalIds  = np.random.choice(np.setdiff1d(cid, trainParams.trainIds), int(cid.size * 0.2))
 
-print('%d will be used for training and %d for evaluating' % (trainParams.trainIds.size, trainParams.evalIds.size))
+print ('runExperiment: found %d total combinations... %d will be used for training and %d for evaluating' % (ncomb, trainParams.trainIds.size, trainParams.evalIds.size))
 
 pyRef_train.mmap = np.memmap(trainParams.datasetfile, dtype=np.dtype([('ins', (np.float32, (model.nsigs, model.nwin, model.N))),
                                                                       ('lbls', np.int32), ('instcomb', 'S64'), ('typecomb', 'S64')]), mode='r', offset=ncomb.nbytes+combClass.nbytes)
 
 # Run experiments
-train_stats, test_stats = pyRef_train.runExperiment(trainParams)
+stats = pyRef_train.runExperiment(trainParams)
 
