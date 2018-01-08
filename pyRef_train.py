@@ -4,8 +4,8 @@ import time
 import tensorflow as tf
 import numpy as np
 import tfplot
-import matplotlib
 import models.rkhsModel as model
+
 
 mmap = None  # FIX
 def np_get_batch(batch_ids, batch_size):

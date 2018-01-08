@@ -48,4 +48,3 @@ pyRef_train.mmap = np.memmap(trainParams.datasetfile, dtype=np.dtype([('ins', (n
 
 # Run experiments
 stats = pyRef_train.runExperiment(trainParams)
-
