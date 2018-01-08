@@ -4,7 +4,7 @@ import time
 import tensorflow as tf
 import numpy as np
 import tfplot
-import matplotlib.pyplot as plt
+import matplotlib
 import models.rkhsModel as model
 
 mmap = None  # FIX
@@ -80,42 +80,27 @@ def add_tables(correct1, correct5, typecombs):
     return update_ops, export_ops
 
 
-def create_stats_figure(stats):
-
-    titleMap = ['TOP1 typeComb', 'TOP5 typeComb']
-    bimg = []
-    stats = np.array(stats)
-    for i in range(stats.shape[0]):
-        labels = stats[i,0]
-        probs = stats[i,1]
-
-        fig = plt.figure()
-
-        plt.bar(np.arange(probs.size), probs, 0.35)
-        plt.xticks(np.arange(labels.size), labels, rotation=-90, ha='center')
-        plt.title(titleMap[i])
-        fig.set_tight_layout(True)
-        fig.canvas.draw()
-
-        buf = fig.canvas.tostring_rgb()
-        ncols, nrows = fig.canvas.get_width_height()
-        shape = (nrows, ncols, 3)
-
-        plt.close()
-
-        bimg.append(np.fromstring(buf, dtype=np.uint8).reshape(shape))
-
-    return np.array(bimg)
+def create_stats_figure(labels, probs):
+    fig, ax = tfplot.subplots()
+    ax.bar(np.arange(probs.size), probs, 0.35)
+    ax.set_xticks(np.arange(labels.size))
+    ax.set_xticklabels(labels, rotation=-90, ha='center')
+    fig.set_tight_layout(True)
+    return fig
 
 # TODO: ideally these tables should be cleaned after each epoch
-def add_comb_stats(correct1, correct5, typecombs, table_selector, plotimg):
+def add_comb_stats(correct1, correct5, typecombs, table_selector):
     with tf.name_scope('combStats') as scope:
         train_update_ops, train_export_ops = add_tables(correct1, correct5, typecombs)
         test_update_ops, test_export_ops = add_tables(correct1, correct5, typecombs)
 
         update_stats, export_stats = tf.cond(tf.equal(table_selector, 0), lambda: [train_update_ops, train_export_ops], lambda: [test_update_ops, test_export_ops])
 
-        tf.summary.image('stats', plotimg, max_outputs=2)
+        top1_plot_op = tfplot.plot(create_stats_figure, [export_stats[0][0], export_stats[0][1]])
+        top5_plot_op = tfplot.plot(create_stats_figure, [export_stats[1][0], export_stats[1][1]])
+
+        tf.summary.image('top1_typecomb', tf.expand_dims(top1_plot_op, 0), max_outputs=1)
+        tf.summary.image('top5_typecomb', tf.expand_dims(top5_plot_op, 0), max_outputs=1)
 
     return update_stats, export_stats
 
@@ -126,7 +111,6 @@ def run_training(trainParams):
 
         keepp_pl = tf.placeholder(tf.float32)
         queue_selector = tf.placeholder(tf.int32)
-        plotimg = tf.placeholder(tf.uint8)
 
         ins, lbs, instcombs, typecombs = add_queues(trainParams.batch_size, trainParams.trainIds, trainParams.evalIds, queue_selector)
 
@@ -136,7 +120,7 @@ def run_training(trainParams):
         eval_top1, eval_top5, correct1, correct5 = model.evaluation(logits, lbs)
 
         avg_loss_op, avg_top1_op, avg_top5_op, reset_op = add_summaries(loss, eval_top1, eval_top5)
-        update_stats, export_stats = add_comb_stats(correct1, correct5, typecombs, queue_selector, plotimg)
+        update_stats, export_stats = add_comb_stats(correct1, correct5, typecombs, queue_selector)
 
         summary = tf.summary.merge_all()
 
@@ -171,12 +155,10 @@ def run_training(trainParams):
 
                     # Log training runtime statistics
                     if np.mod(bthc + 1, np.ceil(nsteps_train / trainParams.sumPerEpoch)) == 0:
-                        img = create_stats_figure(sess.run(export_stats, {queue_selector: 0}))
-
                         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                         run_metadata = tf.RunMetadata()
                         summary_str, _, loss_value, top1_value, top5_value, __ = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
-                                                                                      feed_dict={queue_selector: 0, keepp_pl: keep_prob, plotimg: img }, options=run_options, run_metadata=run_metadata)
+                                                                                      feed_dict={queue_selector: 0, keepp_pl: keep_prob }, options=run_options, run_metadata=run_metadata)
 
                         train_writer.add_run_metadata(run_metadata, 'epoch %d' % sum_step )
                         train_writer.add_summary(summary_str, sum_step )
@@ -201,10 +183,8 @@ def run_training(trainParams):
 
                     # Log testing runtime statistics
                     if np.mod(bthc + 1, np.ceil(nsteps_eval / trainParams.sumPerEpoch)) == 0:
-                        img = create_stats_figure(sess.run(export_stats, {queue_selector: 1}))
-
                         summary_str, loss_value, top1_value, top5_value, _ = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
-                                                                                   feed_dict={queue_selector: 1, keepp_pl: keep_prob, plotimg: img})
+                                                                                   feed_dict={queue_selector: 1, keepp_pl: keep_prob})
                         test_writer.add_summary(summary_str, sum_step )
                         test_writer.flush()
 
@@ -239,8 +219,6 @@ def runExperiment(trainParams):
         tf.gfile.DeleteRecursively(trainParams.log_dir)
 
     tf.gfile.MakeDirs(trainParams.log_dir)
-
-    plt.ioff()
 
     return run_training(trainParams)
 
