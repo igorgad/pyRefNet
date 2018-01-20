@@ -17,9 +17,9 @@ sigma = 1
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
 
-shapeconv2 = [9, 9, 1, 32]
-shapeconv3 = [9, 9, 32, 16]
-shapeconv4 = [5, 5, 16, 8]
+shapeconv2 = [9, 9, 1, 48]
+shapeconv3 = [9, 9, 48, 24]
+shapeconv4 = [5, 5, 24, 8]
 
 fc1_nhidden = trefClass.size * 2
 nclass = len(trefClass)
