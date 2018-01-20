@@ -119,7 +119,7 @@ def inference(ins, keep_prob):
         tf.summary.histogram('w-logits', wl)
         tf.summary.histogram('b-logits', bl)
 
-    tf.summary.image('logits', tf.expand_dims(tf.expand_dims(logits, axis=0), axis=3))
+    # tf.summary.image('logits', tf.expand_dims(tf.expand_dims(logits, axis=0), axis=3))
     return logits
 
 
