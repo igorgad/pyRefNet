@@ -4,7 +4,9 @@ import time
 import tensorflow as tf
 import numpy as np
 import tfplot
-import models.rkhsModel as model
+import models.lstmModel as model #Chose model here!!!
+
+from prettytable import PrettyTable
 
 
 mmap = None  # FIX
@@ -27,8 +29,8 @@ def tf_get_batch(batch_ids, batch_size):
 
 def add_queues(batch_size, train_ids, eval_ids, selector_pl):
     with tf.name_scope('queues') as scope:
-        q_train = tf.FIFOQueue(3, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
-        q_eval = tf.FIFOQueue(8, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
+        q_train = tf.FIFOQueue(4, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
+        q_eval = tf.FIFOQueue(4, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
 
         q_train_op = q_train.enqueue(tf_get_batch(train_ids, batch_size))
         q_eval_op = q_eval.enqueue(tf_get_batch(eval_ids, batch_size))
@@ -101,6 +103,16 @@ def add_comb_stats(correct1, correct5, typecombs, table_selector):
 
     return update_stats, export_stats
 
+def add_hyperparameters_textsum(trainParams):
+    table = PrettyTable(['hparams', 'value'])
+    hpd = dict(model.hptext)
+    hpd.update(trainParams.hptext)
+
+    for key, val in hpd.items():
+        table.add_row([key, val])
+
+    print (table)
+    return tf.summary.text('hyperparameters', tf.convert_to_tensor(table.get_html_string(format=True)))
 
 def run_training(trainParams):
 
@@ -131,7 +143,10 @@ def run_training(trainParams):
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
-        sess.run([init, reset_op])
+        hparams_op = add_hyperparameters_textsum(trainParams)
+        _, hp_str = sess.run([init, hparams_op])
+        train_writer.add_summary(hp_str, 0)
+        train_writer.flush()
 
         ntrain = trainParams.trainIds.size
         neval  = trainParams.evalIds.size
@@ -142,7 +157,9 @@ def run_training(trainParams):
         try:
             # Start the training loop.
             for epoch in range(trainParams.numEpochs):
+
                 # Train
+                sess.run([reset_op])
                 for bthc in range(nsteps_train):
                     sum_step = trainParams.sumPerEpoch * epoch + bthc // np.ceil(nsteps_train / trainParams.sumPerEpoch)
 
@@ -171,6 +188,7 @@ def run_training(trainParams):
                            (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_train - 1, trainParams.batch_size/duration, loss_value, top1_value, top5_value) )
 
                 # Evaluate
+                sess.run([reset_op])
                 for bthc in range(nsteps_eval):
                     sum_step = trainParams.sumPerEpoch * epoch + bthc // np.ceil(nsteps_eval / trainParams.sumPerEpoch)
 

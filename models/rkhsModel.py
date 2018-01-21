@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 import models.ITL as ITL
 
-
+name = 'rkhs'
 # TODO - encapsulate network params into a netparam dict
 ##### NETWORK PARAMS #####
 N = 256     # VBR signal length
@@ -23,6 +23,8 @@ shapeconv4 = [5, 5, 24, 8]
 
 fc1_nhidden = trefClass.size * 2
 nclass = len(trefClass)
+
+hptext = {'model_name': name, 'sigma': sigma, 'medfiltersize': medfiltersize, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden}
 ##########################
 
 
