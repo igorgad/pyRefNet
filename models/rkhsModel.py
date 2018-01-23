@@ -10,6 +10,8 @@ name = 'rkhs'
 N = 256     # VBR signal length
 nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
+batch_size = 20
+lr = 0.0001
 
 trefClass = np.array(range(-80,80)).astype(np.int32)
 sigma = 1
@@ -24,7 +26,7 @@ shapeconv4 = [5, 5, 24, 8]
 fc1_nhidden = trefClass.size * 2
 nclass = len(trefClass)
 
-hptext = {'model_name': name, 'sigma': sigma, 'medfiltersize': medfiltersize, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden}
+hptext = {'model_name': name, 'lr': lr, 'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden}
 ##########################
 
 
@@ -131,11 +133,11 @@ def loss(logits, labels):
     return tf.reduce_mean(cross_entropy, name='xentropy_mean')
 
 
-def training(loss, learning_rate, momentum):
+def training(loss):
 
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
-    optimizer = tf.train.AdamOptimizer(learning_rate)
+    optimizer = tf.train.AdamOptimizer(lr)
     train_op = optimizer.minimize(loss, global_step=global_step)
 
     return train_op

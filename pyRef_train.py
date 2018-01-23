@@ -8,7 +8,6 @@ import models.lstmModel as model #Chose model here!!!
 
 from prettytable import PrettyTable
 
-
 mmap = None  # FIX
 def np_get_batch(batch_ids, batch_size):
     bcan = np.random.choice(batch_ids, batch_size)
@@ -29,8 +28,8 @@ def tf_get_batch(batch_ids, batch_size):
 
 def add_queues(batch_size, train_ids, eval_ids, selector_pl):
     with tf.name_scope('queues') as scope:
-        q_train = tf.FIFOQueue(4, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
-        q_eval = tf.FIFOQueue(4, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
+        q_train = tf.FIFOQueue(3, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
+        q_eval = tf.FIFOQueue(3, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
 
         q_train_op = q_train.enqueue(tf_get_batch(train_ids, batch_size))
         q_eval_op = q_eval.enqueue(tf_get_batch(eval_ids, batch_size))
@@ -121,11 +120,11 @@ def run_training(trainParams):
         keepp_pl = tf.placeholder(tf.float32)
         queue_selector = tf.placeholder(tf.int32)
 
-        ins, lbs, instcombs, typecombs = add_queues(trainParams.batch_size, trainParams.trainIds, trainParams.evalIds, queue_selector)
+        ins, lbs, instcombs, typecombs = add_queues(model.batch_size, trainParams.trainIds, trainParams.evalIds, queue_selector)
 
         logits = model.inference(ins, keepp_pl)
         loss   = model.loss(logits, lbs)
-        train_op = model.training(loss, trainParams.lr, trainParams.momentum)
+        train_op = model.training(loss)
         eval_top1, eval_top5, correct1, correct5 = model.evaluation(logits, lbs)
 
         avg_loss_op, avg_top1_op, avg_top5_op, reset_op = add_summaries(loss, eval_top1, eval_top5)
@@ -151,8 +150,8 @@ def run_training(trainParams):
         ntrain = trainParams.trainIds.size
         neval  = trainParams.evalIds.size
 
-        nsteps_train = np.int32(np.floor(ntrain / trainParams.batch_size))
-        nsteps_eval = np.int32(np.floor(neval / trainParams.batch_size))
+        nsteps_train = np.int32(np.floor(ntrain / model.batch_size))
+        nsteps_eval = np.int32(np.floor(neval / model.batch_size))
 
         try:
             # Start the training loop.
@@ -185,7 +184,7 @@ def run_training(trainParams):
 
                     duration = time.time() - start_time
                     print ('%s_run_%d: TRAIN epoch %d, %d/%d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
-                           (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_train - 1, trainParams.batch_size/duration, loss_value, top1_value, top5_value) )
+                           (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_train - 1, model.batch_size/duration, loss_value, top1_value, top5_value) )
 
                 # Evaluate
                 sess.run([reset_op])
@@ -211,7 +210,7 @@ def run_training(trainParams):
 
                     duration = time.time() - start_time
                     print('%s_run_%d: TEST epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
-                          (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_eval - 1, trainParams.batch_size/duration, loss_value, top1_value, top5_value))
+                          (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_eval - 1, model.batch_size/duration, loss_value, top1_value, top5_value))
 
 
                 # Save a checkpoint

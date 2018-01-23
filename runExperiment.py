@@ -11,13 +11,7 @@ class trainParams:
     pass
 
 # Fill pyRef_train.trainParams class with training parameters.
-trainParams.lr          = 0.0001
-trainParams.momentum    = 0.6 # Not used
-trainParams.weigthDecay = 0.0 # Not used
-
 trainParams.numEpochs   = 200
-trainParams.batch_size  = 20
-
 trainParams.combSets    = [3, 4, 5]
 
 trainParams.datasetfile = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/REFTEST_N' + str(pyRef_train.model.N) + '_NW' + str(pyRef_train.model.nwin) + '_XPAN40_medleyVBRdataset.mmap'
