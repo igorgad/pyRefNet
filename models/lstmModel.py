@@ -10,7 +10,7 @@ name = 'lstm'
 N = 256     # VBR signal length - time steps
 nwin = 64   # Number of windows - number of inputs
 nsigs = 2   # Amount of signals
-batch_size = 32
+batch_size = 256
 lr = 0.0001
 
 trefClass = np.array(range(-80,80)).astype(np.int32)

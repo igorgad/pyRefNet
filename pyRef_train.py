@@ -4,9 +4,10 @@ import time
 import tensorflow as tf
 import numpy as np
 import tfplot
-import models.lstmModel as model #Chose model here!!!
+import models.rkhsModel as model #Chose model here!!!
 
 from prettytable import PrettyTable
+
 
 mmap = None  # FIX
 def np_get_batch(batch_ids, batch_size):
@@ -28,14 +29,14 @@ def tf_get_batch(batch_ids, batch_size):
 
 def add_queues(batch_size, train_ids, eval_ids, selector_pl):
     with tf.name_scope('queues') as scope:
-        q_train = tf.FIFOQueue(3, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
-        q_eval = tf.FIFOQueue(3, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
+        q_train = tf.FIFOQueue(4, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
+        q_eval = tf.FIFOQueue(4, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
 
         q_train_op = q_train.enqueue(tf_get_batch(train_ids, batch_size))
         q_eval_op = q_eval.enqueue(tf_get_batch(eval_ids, batch_size))
 
-        qr_train = tf.train.QueueRunner(q_train, [q_train_op] * 3)
-        qr_eval = tf.train.QueueRunner(q_eval, [q_eval_op] * 8)
+        qr_train = tf.train.QueueRunner(q_train, [q_train_op] * 2)
+        qr_eval = tf.train.QueueRunner(q_eval, [q_eval_op] * 2)
 
         tf.train.add_queue_runner(qr_train)
         tf.train.add_queue_runner(qr_eval)
