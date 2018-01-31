@@ -14,7 +14,7 @@ batch_size = 20
 lr = 0.0001
 
 trefClass = np.array(range(-80,80)).astype(np.int32)
-sigma = 1
+sigma = 10
 
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
@@ -26,7 +26,9 @@ shapeconv4 = [5, 5, 24, 8]
 fc1_nhidden = trefClass.size * 2
 nclass = len(trefClass)
 
-hptext = {'model_name': name, 'lr': lr, 'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden}
+medconvtrain = False
+
+hptext = {'model_name': name, 'lr': lr, 'medconvtrain': medconvtrain, 'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden}
 ##########################
 
 
@@ -34,10 +36,10 @@ def inference(ins, keep_prob):
 
     # Conv 1 Layer (Mean Filter)
     with tf.name_scope('conv_1'):
-        wc1x = tf.Variable(medinit, trainable=True)
-        wc1y = tf.Variable(medinit, trainable=True)
-        bc1x = tf.Variable(0.0, trainable=True)
-        bc1y = tf.Variable(0.0, trainable=True)
+        wc1x = tf.Variable(medinit, trainable=medconvtrain)
+        wc1y = tf.Variable(medinit, trainable=medconvtrain)
+        bc1x = tf.Variable(0.0, trainable=medconvtrain)
+        bc1y = tf.Variable(0.0, trainable=medconvtrain)
 
         [insx, insy] = tf.unstack(ins, axis=3)
         insx = tf.expand_dims(insx, axis=3)
@@ -55,7 +57,7 @@ def inference(ins, keep_prob):
 
     # Normalized Cross Correntropy Layer
     with tf.name_scope('rkhs'):
-        Sigma = tf.Variable(np.float32(sigma), trainable=True)
+        Sigma = tf.Variable(np.float32(sigma), trainable=medconvtrain)
 
         hs = ITL.gspace_layer(conv1, Sigma)
 

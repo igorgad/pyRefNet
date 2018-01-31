@@ -4,7 +4,7 @@ import time
 import tensorflow as tf
 import numpy as np
 import tfplot
-import models.rkhsModel as model #Chose model here!!!
+import models.nccModel as model #Chose model here!!!
 
 from prettytable import PrettyTable
 
@@ -18,7 +18,7 @@ def np_get_batch(batch_ids, batch_size):
     instcomb = np.array([mmap[itm][2] for itm in bcan])
     typecomb = np.array([mmap[itm][3] for itm in bcan])
 
-    return ins_feed.astype(np.float32), lbs_feed.astype(np.int32), instcomb.astype(np.chararray), typecomb.astype(np.chararray)
+    return ins_feed.astype(np.float32), lbs_feed.astype(np.int32), instcomb.astype('U'), typecomb.astype(np.chararray)
 
 
 def tf_get_batch(batch_ids, batch_size):
@@ -226,6 +226,7 @@ def run_training(trainParams):
             train_stats = sess.run(export_stats, {queue_selector: 0})
             test_stats = sess.run(export_stats, {queue_selector: 1})
             sess.close()
+            np.save(trainParams.log_dir + '/combstats', [train_stats, test_stats])
             return [train_stats, test_stats]
 
 

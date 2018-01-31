@@ -30,7 +30,7 @@ def ncc(x, y, marray, s):
     with tf.name_scope('ncc') as scope:
         def nloop(m):
             N = tf.shape(x)[2]
-            nx = tf.range(start=tf.abs(tf.minimum(0, m)), limit=tf.subtract(N + 1, tf.abs(m)))
+            nx = tf.range(start=tf.abs(tf.minimum(0, m)), limit=tf.subtract(N - 1, tf.abs(m)))
             ny = tf.add(nx, m)
 
             return tf.reduce_mean(gkernel(tf.gather(x, nx, axis=2), tf.gather(y, ny, axis=2), s), axis=2)
@@ -39,14 +39,12 @@ def ncc(x, y, marray, s):
 
 
 def ncc_layer(ins,marray,Sigma):
-    """ This function creates a computational graph for the correntropy layer.
-    ins is a tensor of shape [batchSize NumberOfSamples NumberOfWindows NumberOfSignals==2]
-    marray is a tensor with rank 1 containing m values to be analyzed """
-
     [x,y] = tf.unstack(ins, axis=3)
 
     nccr = ncc(x, y, marray, Sigma)
     nccr = tf.image.per_image_standardization(nccr)
     nccr = tf.expand_dims(nccr, dim=3)
 
+    # nccr.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[1], marray.shape[0], 1])  # Fix lost dimensions
     return nccr
+

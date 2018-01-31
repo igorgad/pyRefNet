@@ -14,19 +14,21 @@ batch_size = 20
 lr = 0.0001
 
 marray = np.array(range(-80,80)).astype(np.int32) # marray vary from -80 -79 ... 79
-sigma = 0.5
+sigma = 0.1
 
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
 
-shapeconv2 = [8, 1, 1, 64]
-shapeconv3 = [4, 1, 64, 32]
-shapeconv4 = [4, 1, 32, 16]
+shapeconv2 = [9, 1, 1, 48]
+shapeconv3 = [5, 1, 48, 24]
+shapeconv4 = [5, 1, 24, 16]
 
-fc1_nhidden = nwin * marray.size // 2
+fc1_nhidden = marray.size * 4
 nclass = len(marray)
 
-hptext = {'model_name': name, 'lr': lr, 'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden}
+medconvtrain = True
+
+hptext = {'model_name': name, 'lr': lr, 'medconvtrain': medconvtrain, 'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden}
 ##########################
 
 
@@ -34,10 +36,10 @@ def inference(ins, keep_prob):
 
     # Conv 1 Layer (Mean Filter)
     with tf.name_scope('conv_1'):
-        wc1x = tf.Variable(medinit, trainable=True)
-        wc1y = tf.Variable(medinit, trainable=True)
-        bc1x = tf.Variable(0.0, trainable=True)
-        bc1y = tf.Variable(0.0, trainable=True)
+        wc1x = tf.Variable(medinit, trainable=medconvtrain)
+        wc1y = tf.Variable(medinit, trainable=medconvtrain)
+        bc1x = tf.Variable(0.0, trainable=medconvtrain)
+        bc1y = tf.Variable(0.0, trainable=medconvtrain)
 
         [insx, insy] = tf.unstack(ins, axis=3)
         insx = tf.expand_dims(insx, axis=3)
@@ -55,11 +57,11 @@ def inference(ins, keep_prob):
 
     # Normalized Cross Correntropy Layer
     with tf.name_scope('ccc'):
-        Sigma = tf.Variable(np.float32(sigma), trainable=True)
+        Sigma = tf.Variable(np.float32(sigma), trainable=medconvtrain)
 
         ccc1 = ITL.ncc_layer(conv1, marray, Sigma)
 
-        tf.summary.image('ccc_img', ccc1)
+        tf.summary.image('ccc', ccc1)
         tf.summary.scalar('sigma', Sigma)
 
     # Conv 2 Layer
@@ -67,7 +69,7 @@ def inference(ins, keep_prob):
         wc2 = tf.Variable( tf.truncated_normal(shape=shapeconv2, stddev=0.1) )
         bc2 =  tf.Variable(np.zeros(shapeconv2[3]).astype(np.float32))
 
-        conv2 = tf.nn.relu( tf.nn.conv2d(ccc1, wc2, strides=[1,1,1,1], padding='VALID') + bc2 )
+        conv2 = tf.nn.relu( tf.nn.conv2d(ccc1, wc2, strides=[1,1,1,1], padding='SAME') + bc2 )
         pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
         # drop2 = tf.nn.dropout(pool2, keep_prob)
 
@@ -79,7 +81,7 @@ def inference(ins, keep_prob):
         wc3 = tf.Variable( tf.truncated_normal(shape=shapeconv3, stddev=0.1) )
         bc3 =  tf.Variable(np.zeros(shapeconv3[3]).astype(np.float32))
 
-        conv3 = tf.nn.relu( tf.nn.conv2d(pool2, wc3, strides=[1,1,1,1], padding='VALID') + bc3 )
+        conv3 = tf.nn.relu( tf.nn.conv2d(pool2, wc3, strides=[1,1,1,1], padding='SAME') + bc3 )
         pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
         # drop3 = tf.nn.dropout(pool3, keep_prob)
 
@@ -91,7 +93,7 @@ def inference(ins, keep_prob):
         wc4 = tf.Variable( tf.truncated_normal(shape=shapeconv4, stddev=0.1) )
         bc4 =  tf.Variable(np.zeros(shapeconv4[3]).astype(np.float32))
 
-        conv4 = tf.nn.relu( tf.nn.conv2d(pool3, wc4, strides=[1,1,1,1], padding='VALID') + bc4 )
+        conv4 = tf.nn.relu( tf.nn.conv2d(pool3, wc4, strides=[1,1,1,1], padding='SAME') + bc4 )
         pool4 = tf.nn.max_pool(conv4, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
         # drop4 = tf.nn.dropout(pool4, keep_prob)
 
@@ -123,7 +125,7 @@ def inference(ins, keep_prob):
         tf.summary.histogram('w-logits', wl)
         tf.summary.histogram('b-logits', bl)
 
-    tf.summary.image('logits', tf.expand_dims(tf.expand_dims(logits, axis=0), axis=3))
+    # tf.summary.image('logits', tf.expand_dims(tf.expand_dims(logits, axis=0), axis=3))
     return logits
 
 
