@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 import models.ITL as ITL
 
-name = 'ncc'
+name = 'gram'
 # TODO - encapsulate network params into a netparam dict
 ##### NETWORK PARAMS #####
 N = 256     # VBR signal length
@@ -13,64 +13,34 @@ nsigs = 2   # Amount of signals
 batch_size = 20
 lr = 0.0001
 
-marray = np.array(range(-80,80)).astype(np.int32) # marray vary from -80 -79 ... 79
-sigma = 10
+trefClass = np.array(range(-80,80)).astype(np.int32)
 
-medfiltersize = 8
-medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
+shapeconv2 = [9, 9, 1, 48]
+shapeconv3 = [9, 9, 48, 24]
+shapeconv4 = [5, 5, 24, 16]
 
-shapeconv2 = [9, 1, 1, 48]
-shapeconv3 = [9, 1, 48, 24]
-shapeconv4 = [5, 1, 24, 8]
+fc1_nhidden = trefClass.size * 2
+nclass = len(trefClass)
 
-fc1_nhidden = marray.size * 2
-nclass = len(marray)
-
-medconvtrain = True
-
-hptext = {'model_name': name, 'lr': lr, 'medconvtrain': medconvtrain, 'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden}
+hptext = {'model_name': name, 'lr': lr, 'batch_size': batch_size, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden}
 ##########################
 
 
 def inference(ins, keep_prob):
 
-    # Conv 1 Layer (Mean Filter)
-    with tf.name_scope('conv_1'):
-        wc1x = tf.Variable(medinit, trainable=medconvtrain)
-        wc1y = tf.Variable(medinit, trainable=medconvtrain)
-        bc1x = tf.Variable(0.0, trainable=medconvtrain)
-        bc1y = tf.Variable(0.0, trainable=medconvtrain)
-
-        [insx, insy] = tf.unstack(ins, axis=3)
-        insx = tf.expand_dims(insx, axis=3)
-        insy = tf.expand_dims(insy, axis=3)
-
-        conv1x = tf.nn.conv2d(insx, wc1x, strides=[1, 1, 1, 1], padding='SAME') + bc1x
-        conv1y = tf.nn.conv2d(insy, wc1y, strides=[1, 1, 1, 1], padding='SAME') + bc1y
-
-        conv1 = tf.concat((conv1x, conv1y), axis=3)
-
-        tf.summary.histogram('wc1x-gram', wc1x)
-        tf.summary.histogram('wc1y-gram', wc1y)
-        tf.summary.histogram('bc1x-gram', bc1x)
-        tf.summary.histogram('bc1y-gram', bc1y)
-
     # Normalized Cross Correntropy Layer
-    with tf.name_scope('ccc'):
-        Sigma = tf.Variable(np.float32(sigma), trainable=medconvtrain)
+    with tf.name_scope('gram'):
+        hs = ITL.gram_layer(ins)
 
-        ccc1 = ITL.ncc_layer(conv1, marray, Sigma)
-
-        tf.summary.image('ccc', ccc1)
-        tf.summary.scalar('sigma', Sigma)
+        tf.summary.image('gram', hs)
 
     # Conv 2 Layer
     with tf.name_scope('conv_2'):
         wc2 = tf.Variable( tf.truncated_normal(shape=shapeconv2, stddev=0.1) )
         bc2 =  tf.Variable(np.zeros(shapeconv2[3]).astype(np.float32))
 
-        conv2 = tf.nn.relu( tf.nn.conv2d(ccc1, wc2, strides=[1,1,1,1], padding='SAME') + bc2 )
-        pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
+        conv2 = tf.nn.relu( tf.nn.conv2d(hs, wc2, strides=[1,1,1,1], padding='SAME') + bc2 )
+        pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
         # drop2 = tf.nn.dropout(pool2, keep_prob)
 
         tf.summary.histogram('wc2-gram', wc2)
@@ -82,7 +52,7 @@ def inference(ins, keep_prob):
         bc3 =  tf.Variable(np.zeros(shapeconv3[3]).astype(np.float32))
 
         conv3 = tf.nn.relu( tf.nn.conv2d(pool2, wc3, strides=[1,1,1,1], padding='SAME') + bc3 )
-        pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
+        pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
         # drop3 = tf.nn.dropout(pool3, keep_prob)
 
         tf.summary.histogram('wc3-gram', wc3)
@@ -94,7 +64,7 @@ def inference(ins, keep_prob):
         bc4 =  tf.Variable(np.zeros(shapeconv4[3]).astype(np.float32))
 
         conv4 = tf.nn.relu( tf.nn.conv2d(pool3, wc4, strides=[1,1,1,1], padding='SAME') + bc4 )
-        pool4 = tf.nn.max_pool(conv4, ksize=[1, 2, 1, 1], strides=[1, 2, 1, 1], padding='SAME')
+        pool4 = tf.nn.max_pool(conv4, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
         # drop4 = tf.nn.dropout(pool4, keep_prob)
 
         tf.summary.histogram('wc4-gram', wc4)
@@ -106,7 +76,7 @@ def inference(ins, keep_prob):
 
     # FC 1 Layer
     with tf.name_scope('fc_1'):
-        wfc1 = tf.Variable( tf.truncated_normal(shape=[flat4.get_shape().as_list()[1] , fc1_nhidden], stddev=0.1) )
+        wfc1 = tf.Variable( tf.truncated_normal(shape=[flat4.get_shape().as_list()[-1], fc1_nhidden], stddev=0.1) )
         bfc1 =  tf.Variable(np.zeros(fc1_nhidden).astype(np.float32))
 
         fc1 = tf.nn.relu(tf.matmul(flat4, wfc1) + bfc1)
@@ -136,6 +106,7 @@ def loss(logits, labels):
 
 
 def training(loss):
+
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
     optimizer = tf.train.AdamOptimizer(lr)

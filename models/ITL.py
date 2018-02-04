@@ -2,6 +2,27 @@
 import tensorflow as tf
 import numpy as np
 
+def gram_op(x,y):
+    return tf.subtract(x,y)
+
+def gram(x,y):
+    with tf.name_scope('gspace') as scope:
+        def rloop(i):
+            return gram_op(tf.gather(x, tf.range(tf.shape(x)[2]), axis=2), tf.expand_dims(tf.gather(y, i, axis=2), dim=2))
+
+        return tf.transpose(tf.reduce_mean(tf.map_fn(rloop, tf.range(tf.shape(y)[2]), dtype=tf.float32), axis=2), [1, 0, 2])
+
+
+def gram_layer(ins):
+    [x, y] = tf.unstack(ins, axis=3)
+
+    grm = gram(x,y)
+    grm = tf.image.per_image_standardization(grm)
+    grm = tf.expand_dims(grm, dim=3)
+
+    grm.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 1])  # Fix lost dimensions
+    return grm
+
 
 def gkernel(x, y, s):
     return tf.divide(1.0,tf.sqrt(tf.multiply(tf.multiply(2.0,np.pi),s))) * tf.exp( tf.divide(tf.multiply(-1.0,tf.pow(tf.subtract(x,y), 2.0)),tf.multiply(2.0,tf.pow(s, 2.0))) )
