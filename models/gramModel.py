@@ -10,10 +10,13 @@ name = 'gram'
 N = 256     # VBR signal length
 nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
-batch_size = 20
+batch_size = 48
 lr = 0.0001
 
 trefClass = np.array(range(-80,80)).astype(np.int32)
+
+medfiltersize = 8
+medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
 
 shapeconv2 = [9, 9, 1, 48]
 shapeconv3 = [9, 9, 48, 24]
@@ -22,11 +25,33 @@ shapeconv4 = [5, 5, 24, 16]
 fc1_nhidden = trefClass.size * 2
 nclass = len(trefClass)
 
-hptext = {'model_name': name, 'lr': lr, 'batch_size': batch_size, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden}
+medconvtrain = False
+
+hptext = {'model_name': name, 'lr': lr,  'medconvtrain': medconvtrain, 'medfiltersize': medfiltersize, 'batch_size': batch_size, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden}
 ##########################
 
 
 def inference(ins, keep_prob):
+    # Conv 1 Layer (Mean Filter)
+    with tf.name_scope('conv_1'):
+        wc1x = tf.Variable(medinit, trainable=medconvtrain)
+        wc1y = tf.Variable(medinit, trainable=medconvtrain)
+        bc1x = tf.Variable(0.0, trainable=medconvtrain)
+        bc1y = tf.Variable(0.0, trainable=medconvtrain)
+
+        [insx, insy] = tf.unstack(ins, axis=3)
+        insx = tf.expand_dims(insx, axis=3)
+        insy = tf.expand_dims(insy, axis=3)
+
+        conv1x = tf.nn.conv2d(insx, wc1x, strides=[1, 1, 1, 1], padding='SAME') + bc1x
+        conv1y = tf.nn.conv2d(insy, wc1y, strides=[1, 1, 1, 1], padding='SAME') + bc1y
+
+        conv1 = tf.concat((conv1x, conv1y), axis=3)
+
+        tf.summary.histogram('wc1x-gram', wc1x)
+        tf.summary.histogram('wc1y-gram', wc1y)
+        tf.summary.histogram('bc1x-gram', bc1x)
+        tf.summary.histogram('bc1y-gram', bc1y)
 
     # Normalized Cross Correntropy Layer
     with tf.name_scope('gram'):

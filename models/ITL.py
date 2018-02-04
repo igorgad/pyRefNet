@@ -3,7 +3,7 @@ import tensorflow as tf
 import numpy as np
 
 def gram_op(x,y):
-    return tf.subtract(x,y)
+    return tf.pow(tf.subtract(x,y), 2.0)
 
 def gram(x,y):
     with tf.name_scope('gspace') as scope:
