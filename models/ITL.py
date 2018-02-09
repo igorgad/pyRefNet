@@ -2,9 +2,15 @@
 import tensorflow as tf
 import numpy as np
 
+def gkernel(x, y, s):
+    return tf.divide(1.0,tf.sqrt(tf.multiply(tf.multiply(2.0,np.pi),s))) * tf.exp( tf.divide(tf.multiply(-1.0,tf.pow(tf.subtract(x,y), 2.0)),tf.multiply(2.0,tf.pow(s, 2.0))) )
+
+
 def gram_op(x,y):
     return tf.pow(tf.subtract(x,y), 2.0)
 
+
+####### Normalized Correlogram Matrix Layer
 def gram(x,y):
     with tf.name_scope('gspace') as scope:
         def rloop(i):
@@ -16,18 +22,14 @@ def gram(x,y):
 def gram_layer(ins):
     [x, y] = tf.unstack(ins, axis=3)
 
-    grm = gram(x,y)
-    grm = tf.image.per_image_standardization(grm)
-    grm = tf.expand_dims(grm, dim=3)
+    grm = [tf.image.per_image_standardization(gram(x,x)), tf.image.per_image_standardization(gram(y,y)), tf.image.per_image_standardization(gram(x,y))]
+    grm = tf.stack(grm, axis=3)
 
-    grm.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 1])  # Fix lost dimensions
+    grm.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 3])  # Fix lost dimensions
     return grm
 
 
-def gkernel(x, y, s):
-    return tf.divide(1.0,tf.sqrt(tf.multiply(tf.multiply(2.0,np.pi),s))) * tf.exp( tf.divide(tf.multiply(-1.0,tf.pow(tf.subtract(x,y), 2.0)),tf.multiply(2.0,tf.pow(s, 2.0))) )
-
-
+####### Normalized RKHS Correntropy Layer
 def gspace(x,y,s):
     with tf.name_scope('gspace') as scope:
         def rloop(i):
@@ -39,14 +41,16 @@ def gspace(x,y,s):
 def gspace_layer(ins,Sigma):
     [x, y] = tf.unstack(ins, axis=3)
 
-    gsr = gspace(x,y,Sigma)
-    gsr = tf.image.per_image_standardization(gsr)
-    gsr = tf.expand_dims(gsr, dim=3)
+    gsr = [tf.image.per_image_standardization(gspace(x, x, Sigma)), tf.image.per_image_standardization(gspace(y, y, Sigma)),
+           tf.image.per_image_standardization(gspace(x, y, Sigma))]
 
-    gsr.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 1])  # Fix lost dimensions
+    gsr = tf.stack(gsr, axis=3)
+
+    gsr.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 3])  # Fix lost dimensions
     return gsr
 
 
+####### Normalized Cross Correntropy Layer
 def ncc(x, y, marray, s):
     with tf.name_scope('ncc') as scope:
         def nloop(m):
@@ -62,10 +66,11 @@ def ncc(x, y, marray, s):
 def ncc_layer(ins,marray,Sigma):
     [x,y] = tf.unstack(ins, axis=3)
 
-    nccr = ncc(x, y, marray, Sigma)
-    nccr = tf.image.per_image_standardization(nccr)
-    nccr = tf.expand_dims(nccr, dim=3)
+    nccr = [tf.image.per_image_standardization(ncc(x, x, marray, Sigma)), tf.image.per_image_standardization(ncc(y, y, marray, Sigma)),
+            tf.image.per_image_standardization(ncc(x, y, marray, Sigma))]
 
-    # nccr.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[1], marray.shape[0], 1])  # Fix lost dimensions
+    nccr = tf.stack(nccr, axis=3)
+
+    nccr.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[1], marray.shape[0], 3])  # Fix lost dimensions
     return nccr
 

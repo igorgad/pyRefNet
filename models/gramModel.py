@@ -11,21 +11,21 @@ N = 256     # VBR signal length
 nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
 batch_size = 48
-lr = 0.0001
+lr = 0.001
 
 trefClass = np.array(range(-80,80)).astype(np.int32)
 
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
 
-shapeconv2 = [9, 9, 1, 48]
+shapeconv2 = [9, 9, 3, 48]
 shapeconv3 = [9, 9, 48, 24]
 shapeconv4 = [5, 5, 24, 16]
 
 fc1_nhidden = trefClass.size * 2
 nclass = len(trefClass)
 
-medconvtrain = False
+medconvtrain = True
 
 hptext = {'model_name': name, 'lr': lr,  'medconvtrain': medconvtrain, 'medfiltersize': medfiltersize, 'batch_size': batch_size, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden}
 ##########################

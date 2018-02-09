@@ -4,7 +4,7 @@ import time
 import tensorflow as tf
 import numpy as np
 import tfplot
-import models.gramModel as model #Chose model here!!!
+import models.rkhsModel as model #Chose model here!!!
 
 from prettytable import PrettyTable
 

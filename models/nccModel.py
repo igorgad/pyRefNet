@@ -19,7 +19,7 @@ sigma = 10
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
 
-shapeconv2 = [9, 1, 1, 48]
+shapeconv2 = [9, 3, 1, 48]
 shapeconv3 = [9, 1, 48, 24]
 shapeconv4 = [5, 1, 24, 8]
 
