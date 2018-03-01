@@ -8,44 +8,98 @@ import models.rkhsModel as model #Chose model here!!!
 
 from prettytable import PrettyTable
 
+features={
+    'comb/id'   : tf.FixedLenFeature([], tf.int64),
+    'comb/class': tf.FixedLenFeature([], tf.int64),
+    'comb/inst1': tf.FixedLenFeature([], tf.string),
+    'comb/inst2': tf.FixedLenFeature([], tf.string),
+    'comb/type1': tf.FixedLenFeature([], tf.string),
+    'comb/type2': tf.FixedLenFeature([], tf.string),
+    'comb/sig1' : tf.FixedLenFeature([], tf.string),
+    'comb/sig2' : tf.FixedLenFeature([], tf.string),
+    'comb/ref'  : tf.FixedLenFeature([], tf.int64),
+}
 
-mmap = None  # FIX
-def np_get_batch(batch_ids, batch_size):
-    bcan = np.random.choice(batch_ids, batch_size)
-
-    ins_feed = np.array([mmap[itm][0] for itm in bcan]).transpose([0,2,3,1])
-    lbs_feed = np.array([mmap[itm][1] for itm in bcan]) + 80
-    instcomb = np.array([mmap[itm][2] for itm in bcan])
-    typecomb = np.array([mmap[itm][3] for itm in bcan])
-
-    return ins_feed.astype(np.float32), lbs_feed.astype(np.int32), instcomb.astype('U'), typecomb.astype(np.chararray)
+def filter_split_examples(tf_example, ids):
+    parsed_features = tf.parse_single_example(tf_example, features)
+    id = parsed_features['comb/id']
+    return tf.reduce_any(tf.equal(id,ids))
 
 
-def tf_get_batch(batch_ids, batch_size):
-    ins, lbs, instcombs, typecombs = tf.py_func(np_get_batch, [batch_ids, batch_size], [tf.float32, tf.int32, tf.string, tf.string])
+def filter_perclass_examples(tf_example, selected_class):
+    parsed_features = tf.parse_single_example(tf_example, features)
+    cls = parsed_features['comb/class']
+    return tf.reduce_any(tf.equal(cls,selected_class))
 
-    return ins, lbs, instcombs, typecombs
+
+def filter_perwindow_examples(tf_example, N, nwin):
+    parsed_features = tf.parse_single_example(tf_example, features)
+    sig1 = tf.reshape(tf.decode_raw(parsed_features['comb/sig1'], tf.float32), [-1])
+    sig2 = tf.reshape(tf.decode_raw(parsed_features['comb/sig2'], tf.float32), [-1])
+
+    nw1 = 1 + tf.shape(sig1)[0] // N
+    nw2 = 1 + tf.shape(sig2)[0] // N
+
+    return tf.reduce_all([tf.less_equal(nwin,nw1), tf.less_equal(nwin,nw2)])
 
 
-def add_queues(batch_size, train_ids, eval_ids, selector_pl):
-    with tf.name_scope('queues') as scope:
-        q_train = tf.FIFOQueue(4, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
-        q_eval = tf.FIFOQueue(4, dtypes=[tf.float32, tf.int32, tf.string, tf.string], shapes=[[batch_size, model.nwin, model.N, model.nsigs], [batch_size], [batch_size], [batch_size]])
+def slice_examples(tf_example, N, nwin):
+    parsed_features = tf.parse_single_example(tf_example, features)
 
-        q_train_op = q_train.enqueue(tf_get_batch(train_ids, batch_size))
-        q_eval_op = q_eval.enqueue(tf_get_batch(eval_ids, batch_size))
+    ref = tf.cast(parsed_features['comb/ref'], tf.int32)
+    sig1 = tf.reshape(tf.decode_raw(parsed_features['comb/sig1'], tf.float32), [-1])
+    sig2 = tf.reshape(tf.decode_raw(parsed_features['comb/sig2'], tf.float32), [-1])
+    type1 = parsed_features['comb/type1']
+    type2 = parsed_features['comb/type2']
 
-        qr_train = tf.train.QueueRunner(q_train, [q_train_op] * 2)
-        qr_eval = tf.train.QueueRunner(q_eval, [q_eval_op] * 2)
+    sz1 = tf.shape(sig1)[0]
+    sz2 = tf.shape(sig2)[0]
 
-        tf.train.add_queue_runner(qr_train)
-        tf.train.add_queue_runner(qr_eval)
+    nw1 = 1 + sz1 // N
+    nw2 = 1 + sz2 // N
 
-        q = tf.QueueBase.from_list(selector_pl, [q_train, q_eval])
+    zero_padding1 = tf.zeros([nw1 * N - sz1], tf.float32)
+    zero_padding2 = tf.zeros([nw2 * N - sz2], tf.float32)
 
-        ins, lbs, instcombs, typecombs = q.dequeue()
+    sig1 = tf.concat([sig1, zero_padding1], 0)
+    sig2 = tf.concat([sig2, zero_padding2], 0)
 
-    return ins, lbs, instcombs, typecombs
+    sigmat1 = tf.reshape(sig1, [-1,N])
+    sigmat2 = tf.reshape(sig2, [-1,N])
+
+    sigmat1 = tf.gather(sigmat1, tf.random_uniform((nwin,), maxval=tf.shape(sigmat1)[0], dtype=tf.int32), axis=0)
+    sigmat2 = tf.gather(sigmat2, tf.random_uniform((nwin,), maxval=tf.shape(sigmat2)[0], dtype=tf.int32), axis=0)
+
+    ins = tf.stack((sigmat1, sigmat2), axis=2)
+
+    return ins, ref, tf.string_join([type1, ' x ', type2])
+
+
+def add_data_pipeline(batch_size, train_ids, eval_ids, handle, datasetfile, classes):
+
+    with tf.name_scope('dataset') as scope:
+        tfdataset = tf.data.TFRecordDataset(datasetfile)
+        tfdataset = tfdataset.filter(lambda ex: filter_perclass_examples(ex, classes))
+        tfdataset = tfdataset.filter(lambda ex: filter_perwindow_examples(ex, model.N, model.nwin))
+
+        train_dataset = tfdataset.filter(lambda ex: filter_split_examples(ex, train_ids))
+        test_dataset  = tfdataset.filter(lambda ex: filter_split_examples(ex, eval_ids))
+
+        train_dataset = train_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin))
+        test_dataset  = test_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin))
+
+        train_dataset = train_dataset.batch(batch_size)
+        test_dataset  = test_dataset.batch(batch_size)
+
+        iterator = tf.data.Iterator.from_string_handle(
+            handle, train_dataset.output_types, train_dataset.output_shapes)
+        next_element = iterator.get_next()
+
+        train_iterator = train_dataset.make_one_shot_iterator()
+        test_iterator = test_dataset.make_one_shot_iterator()
+
+
+    return next_element, train_iterator, test_iterator
 
 
 def add_summaries(loss, eval1, eval5):
@@ -120,8 +174,13 @@ def run_training(trainParams):
 
         keepp_pl = tf.placeholder(tf.float32)
         queue_selector = tf.placeholder(tf.int32)
+        dataset_handle = tf.placeholder(tf.string, shape=[])
 
-        ins, lbs, instcombs, typecombs = add_queues(model.batch_size, trainParams.trainIds, trainParams.evalIds, queue_selector)
+        examples, train_iterator, test_iterator = add_data_pipeline(model.batch_size, trainParams.trainIds, trainParams.evalIds, dataset_handle,
+                                                                    trainParams.datasetfile, trainParams.combSets)
+        ins = examples[0]
+        lbs = examples[1]
+        typecombs = examples[2]
 
         logits = model.inference(ins, keepp_pl)
         loss   = model.loss(logits, lbs)
@@ -139,6 +198,9 @@ def run_training(trainParams):
         sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
         train_writer = tf.summary.FileWriter(trainParams.log_dir + '/train', sess.graph)
         test_writer = tf.summary.FileWriter(trainParams.log_dir + '/test')
+
+        training_handle = sess.run(train_iterator.string_handle())
+        testing_handle = sess.run(test_iterator.string_handle())
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
@@ -172,7 +234,7 @@ def run_training(trainParams):
                         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                         run_metadata = tf.RunMetadata()
                         summary_str, _, loss_value, top1_value, top5_value, __ = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
-                                                                                      feed_dict={queue_selector: 0, keepp_pl: keep_prob }, options=run_options, run_metadata=run_metadata)
+                                                                                      feed_dict={dataset_handle: training_handle, queue_selector: 0, keepp_pl: keep_prob }, options=run_options, run_metadata=run_metadata)
 
                         train_writer.add_run_metadata(run_metadata, 'epoch %d' % sum_step )
                         train_writer.add_summary(summary_str, sum_step )
@@ -181,7 +243,7 @@ def run_training(trainParams):
                         sess.run([reset_op])
                     else:
                         _, loss_value, top1_value, top5_value, __ = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
-                                                                          feed_dict={queue_selector: 0, keepp_pl: keep_prob})
+                                                                          feed_dict={dataset_handle: training_handle, queue_selector: 0, keepp_pl: keep_prob})
 
                     duration = time.time() - start_time
                     print ('%s_run_%d: TRAIN epoch %d, %d/%d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
@@ -199,14 +261,14 @@ def run_training(trainParams):
                     # Log testing runtime statistics
                     if np.mod(bthc + 1, np.ceil(nsteps_eval / trainParams.sumPerEpoch)) == 0:
                         summary_str, loss_value, top1_value, top5_value, _ = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
-                                                                                   feed_dict={queue_selector: 1, keepp_pl: keep_prob})
+                                                                                   feed_dict={dataset_handle: testing_handle, queue_selector: 1, keepp_pl: keep_prob})
                         test_writer.add_summary(summary_str, sum_step )
                         test_writer.flush()
 
                         sess.run([reset_op])
                     else:
                         loss_value, top1_value, top5_value, _ = sess.run([avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
-                                                                      feed_dict={queue_selector: 1, keepp_pl: keep_prob})
+                                                                      feed_dict={dataset_handle: testing_handle, queue_selector: 1, keepp_pl: keep_prob})
 
 
                     duration = time.time() - start_time

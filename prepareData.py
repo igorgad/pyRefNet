@@ -8,7 +8,7 @@ import os
 import scipy.io.wavfile as wf
 
 #### n of dataset augmentation
-nexpan = 60
+nexpan = 40
 #### ENCODE PARAMS
 blocksize = 512
 #### PATHs
@@ -16,14 +16,13 @@ metadata_dir = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/METADATA/'
 audio_dir = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/Audio/'
 tfrecordfile = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/bitrate_medleydb_blocksize' + str(blocksize) + '.tfrecord'
 #### Dataset type classification
-rythm = ['auxiliary percussion', 'bass drum', 'bongo', 'chimes','claps', 'cymbal', 'drum machine', 'darbuka', 'glockenspiel','doumbek', 'drum set', 'kick drum', 'shaker', 'snare drum', 'tabla', 'tambourine', 'timpani', 'toms', 'vibraphone']
+rythm = ['gong', 'auxiliary percussion', 'bass drum', 'bongo', 'chimes','claps', 'cymbal', 'drum machine', 'darbuka', 'glockenspiel','doumbek', 'drum set', 'kick drum', 'shaker', 'snare drum', 'tabla', 'tambourine', 'timpani', 'toms', 'vibraphone']
 eletronic = ['Main System', 'fx/processed sound', 'sampler','scratches' ]
-strings = ['electric bass', 'acoustic guitar', 'banjo', 'cello', 'cello section', 'clean electric guitar', 'distorted electric guitar', 'double bass','lap steel guitar','mandolin','string section','viola','viola section','violin','violin section','yangqin', 'zhongruan']
-brass = ['horn section', 'alto saxophone', 'bamboo flute', 'baritone saxophone', 'bass clarinet', 'bassoon','brass section', 'clarinet', 'clarinet section','dizi', 'flute','flute section', 'french horn', 'french horn section','oboe','oud','tenor saxophone','trombone', 'trombone section','trumpet','trumpet section' ,'tuba' ]
+strings = ['gu', 'zhongruan', 'liuqin', 'guzheng', 'erhu', 'harp', 'electric bass', 'acoustic guitar', 'banjo', 'cello', 'cello section', 'clean electric guitar', 'distorted electric guitar', 'double bass','lap steel guitar','mandolin','string section','viola','viola section','violin','violin section','yangqin', 'zhongruan']
+brass = ['piccolo', 'soprano saxophone', 'horn section', 'alto saxophone', 'bamboo flute', 'baritone saxophone', 'bass clarinet', 'bassoon','brass section', 'clarinet', 'clarinet section','dizi', 'flute','flute section', 'french horn', 'french horn section','oboe','oud','tenor saxophone','trombone', 'trombone section','trumpet','trumpet section' ,'tuba' ]
 voice = ['female singer', 'male rapper','male singer','male speaker', 'vocalists']
-melody = ['accordion','piano', 'synthesizer','tack piano','harmonica', 'melodica']
+melody = ['electric piano', 'accordion','piano', 'synthesizer','tack piano','harmonica', 'melodica']
 tps = {'rythm': rythm, 'electronic': eletronic, 'strings': strings, 'brass': brass, 'voice': voice, 'melody': melody}
-
 
 
 
@@ -40,14 +39,21 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
     basename = os.path.splitext(filename)[0]
     dlyfilename = basename + '_dly' + str(delay)
 
-    if not os.path.isfile(path + '/' + dlyfilename + '.ana'):
+    if not os.path.isfile(path + '/' + dlyfilename + '.bin'):
 
         # Open audio and insert delay
         try:
             rate, samples = wf.read(audiofile)
         except ValueError:
-            print ("################# AUDIO READ ERROR ###################")
-            return -1, -1
+            print('################# AUDIO READ ERROR on file ' + audiofile + ' ###################')
+            print('################# recovering... ###################')
+            os.system('ffmpeg -y -i ' + audiofile + ' ' + path + '/recovered_' + filename)
+
+            try:
+                rate, samples = wf.read(path + '/recovered_' + filename)
+            except ValueError:
+                print('################# not recovered ###################')
+                return -1, -1
 
         samples = np.sum(samples, axis=1).astype(np.int16) # Convert stereo to mono
         samplesdly = np.concatenate((np.zeros(delay, np.int16), samples[:-delay]))
@@ -56,24 +62,30 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
         wf.write(path + '/' + dlyfilename + '.wav', rate, samplesdly)
 
         # Generate analyzer file with system flac
-        os.system('flac -b ' + str(blocksize) + ' ' + path + '/' + dlyfilename + '.wav')
+        os.system('flac -f -b ' + str(blocksize) + ' ' + path + '/' + dlyfilename + '.wav')
         os.system('flac -a ' + path + '/' + dlyfilename + '.flac')
+
+        try:
+            tmpf = open(path + '/' + dlyfilename + '.ana', 'r')
+            fstr = tmpf.read(-1)
+        except IOError:
+            print('################# AUDIO IO ERROR on file ' + dlyfilename + '.ana' + ' ###################')
+            return -1, -1
+
+        kval = np.array([k.split('=') for k in fstr.split()])
+        idx = np.nonzero(kval[:,0] == 'bits')
+        bitratesignal = np.squeeze(kval[idx, 1])
+
+        bitratesignal = np.int32(bitratesignal)[1:]
+        bitratesignal = np.float32((bitratesignal - np.mean(bitratesignal)) / np.std(bitratesignal))
+
+        bitratesignal.tofile(path + '/' + dlyfilename + '.bin')
 
         os.remove(path + '/' + dlyfilename + '.wav')
         os.remove(path + '/' + dlyfilename + '.flac')
+        os.remove(path + '/' + dlyfilename + '.ana')
 
-    tmpf = open(path + '/' + dlyfilename + '.ana', 'r')
-    fstr = tmpf.read(-1)
-
-    kval = fstr.split()
-    bitratesignal = np.empty(0)
-    for k in kval:
-        key, val = k.split('=')
-        if key == 'bits':
-            bitratesignal = np.append(bitratesignal, val)
-
-    bitratesignal = np.int32(bitratesignal)[1:]
-    bitratesignal = np.float32((bitratesignal - np.mean(bitratesignal)) / np.std(bitratesignal))
+    bitratesignal = np.fromfile(path + '/' + dlyfilename + '.bin')
 
     return bitratesignal, delay // blocksize
 
@@ -111,9 +123,10 @@ def get_class (inst1, inst2, type1, type2):
     return combClass
 
 
-def create_tf_example(st1, st2, cclass, sig1, sig2, dly1, dly2):
+def create_tf_example(st1, st2, id, cclass, sig1, sig2, dly1, dly2):
 
     tf_example = tf.train.Example(features=tf.train.Features(feature={
+        'comb/id'   : int64_feature(id),
         'comb/class': int64_feature(cclass),
         'comb/inst1': bytes_feature(os.fsencode(st1['instrument'])),
         'comb/inst2': bytes_feature(os.fsencode(st2['instrument'])),
@@ -133,12 +146,13 @@ def combFunc(params):
     st2 = params[2]
     delay_samples1 = params[3]
     delay_samples2 = params[4]
+    id = params[5]
 
     st = time.time()
     #print('############################## start ' + st1['instrument'] + ' x ' + st2['instrument'])
 
-    st1['type'] = list(tps.keys())[np.squeeze(np.nonzero([s.count(st1['instrument']) for s in tps.values()]))]
-    st2['type'] = list(tps.keys())[np.squeeze(np.nonzero([s.count(st2['instrument']) for s in tps.values()]))]
+    st1['type'] = list(tps.keys())[np.nonzero([s.count(st1['instrument']) for s in tps.values()])[0][0]]
+    st2['type'] = list(tps.keys())[np.nonzero([s.count(st2['instrument']) for s in tps.values()])[0][0]]
 
     cclass = get_class(st1['instrument'], st2['instrument'], st1['type'], st2['type'])
 
@@ -150,12 +164,12 @@ def combFunc(params):
     sig2, dly2 = insert_delay_and_gather_bitratesignal(audio_dir + '/' + sdir + '/' + fn2, delay_samples2, blocksize)
 
     if dly1 == -1 or dly2 == -1:
-        print('################################# skipping dir')
+        print('################################# skipping comb' + st1['instrument'] + ' x ' + st2['instrument'])
         return -1
 
     sig1, sig2 = cleancomb(sig1, sig2)
 
-    tf_example = create_tf_example(st1, st2, cclass, sig1, sig2, dly1, dly2)
+    tf_example = create_tf_example(st1, st2, id, cclass, sig1, sig2, dly1, dly2)
 
     print('############################################# finished ' + st1['instrument'] + ' x ' + st2['instrument'] + ' in ' + str(time.time() - st))
 
@@ -170,6 +184,8 @@ audiodir = os.fsencode(audio_dir)
 metdir = os.fsencode(metadata_dir)
 
 pool = multiprocessing.Pool(processes=2)
+
+id = 1
 
 try:
 
@@ -194,7 +210,9 @@ try:
                     dly1 = np.random.randint(0, 88200)
                     dly2 = np.random.randint(0, 88200)
 
-                    combparams.append([yml, st1, st2, dly1, dly2])
+                    combparams.append([yml, st1, st2, dly1, dly2, id])
+
+                    id += 1
 
             tf_examples = pool.map(combFunc, combparams)
 
@@ -204,4 +222,5 @@ try:
                     writer.write(tf_example.SerializeToString())
 
 finally:
+    pool.terminate()
     print ('ENDING: comb ' + st1['instrument'] + ' x ' + st2['instrument'])
