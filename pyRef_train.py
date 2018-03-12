@@ -46,7 +46,7 @@ def filter_perwindow_examples(tf_example, N, nwin):
 def slice_examples(tf_example, N, nwin):
     parsed_features = tf.parse_single_example(tf_example, features)
 
-    ref = tf.cast(parsed_features['comb/ref'], tf.int32)
+    ref = tf.cast(parsed_features['comb/ref'], tf.int32) + model.trefClass[-1]
     sig1 = tf.reshape(tf.decode_raw(parsed_features['comb/sig1'], tf.float32), [-1])
     sig2 = tf.reshape(tf.decode_raw(parsed_features['comb/sig2'], tf.float32), [-1])
     type1 = parsed_features['comb/type1']
@@ -75,7 +75,7 @@ def slice_examples(tf_example, N, nwin):
     return ins, ref, tf.string_join([type1, ' x ', type2])
 
 
-def add_data_pipeline(batch_size, train_ids, eval_ids, handle, datasetfile, classes):
+def add_data_pipeline(batch_size, train_ids, eval_ids, handle, datasetfile, classes, numepochs):
 
     with tf.name_scope('dataset') as scope:
         tfdataset = tf.data.TFRecordDataset(datasetfile)
@@ -85,8 +85,14 @@ def add_data_pipeline(batch_size, train_ids, eval_ids, handle, datasetfile, clas
         train_dataset = tfdataset.filter(lambda ex: filter_split_examples(ex, train_ids))
         test_dataset  = tfdataset.filter(lambda ex: filter_split_examples(ex, eval_ids))
 
-        train_dataset = train_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin))
-        test_dataset  = test_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin))
+        train_dataset = train_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin), num_parallel_calls=4)
+        test_dataset  = test_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin), num_parallel_calls=4)
+
+        train_dataset = train_dataset.shuffle(512, reshuffle_each_iteration=True)
+        test_dataset = test_dataset.shuffle(512, reshuffle_each_iteration=True)
+
+        train_dataset = train_dataset.prefetch(buffer_size=512)
+        test_dataset  = test_dataset.prefetch(buffer_size=512)
 
         train_dataset = train_dataset.batch(batch_size)
         test_dataset  = test_dataset.batch(batch_size)
@@ -95,8 +101,8 @@ def add_data_pipeline(batch_size, train_ids, eval_ids, handle, datasetfile, clas
             handle, train_dataset.output_types, train_dataset.output_shapes)
         next_element = iterator.get_next()
 
-        train_iterator = train_dataset.make_one_shot_iterator()
-        test_iterator = test_dataset.make_one_shot_iterator()
+        train_iterator = train_dataset.make_initializable_iterator()
+        test_iterator = test_dataset.make_initializable_iterator()
 
 
     return next_element, train_iterator, test_iterator
@@ -177,7 +183,7 @@ def run_training(trainParams):
         dataset_handle = tf.placeholder(tf.string, shape=[])
 
         examples, train_iterator, test_iterator = add_data_pipeline(model.batch_size, trainParams.trainIds, trainParams.evalIds, dataset_handle,
-                                                                    trainParams.datasetfile, trainParams.combSets)
+                                                                    trainParams.datasetfile, trainParams.combSets, trainParams.numEpochs)
         ins = examples[0]
         lbs = examples[1]
         typecombs = examples[2]
@@ -202,79 +208,85 @@ def run_training(trainParams):
         training_handle = sess.run(train_iterator.string_handle())
         testing_handle = sess.run(test_iterator.string_handle())
 
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(sess=sess, coord=coord)
-
         hparams_op = add_hyperparameters_textsum(trainParams)
         _, hp_str = sess.run([init, hparams_op])
         train_writer.add_summary(hp_str, 0)
         train_writer.flush()
 
-        ntrain = trainParams.trainIds.size
-        neval  = trainParams.evalIds.size
-
-        nsteps_train = np.int32(np.floor(ntrain / model.batch_size))
-        nsteps_eval = np.int32(np.floor(neval / model.batch_size))
+        train_btch = 0
+        sum_step = 0
+        eval_btch = 0
 
         try:
+
             # Start the training loop.
             for epoch in range(trainParams.numEpochs):
 
                 # Train
-                sess.run([reset_op])
-                for bthc in range(nsteps_train):
-                    sum_step = trainParams.sumPerEpoch * epoch + bthc // np.ceil(nsteps_train / trainParams.sumPerEpoch)
+                sess.run(reset_op)
+                sess.run(train_iterator.initializer)
 
-                    keep_prob = 0.7 #Dynamic control of dropout rate
+                run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                run_metadata = tf.RunMetadata()
+                _, loss_value, top1_value, top5_value, __ = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
+                                                                     feed_dict={dataset_handle: training_handle, queue_selector: 0, keepp_pl: model.keep_prob}, options=run_options,
+                                                                     run_metadata=run_metadata)
 
-                    start_time = time.time()
+                train_writer.add_run_metadata(run_metadata, 'stats_epoch %d' % epoch)
+                train_writer.flush()
 
-                    # Log training runtime statistics
-                    if np.mod(bthc + 1, np.ceil(nsteps_train / trainParams.sumPerEpoch)) == 0:
-                        run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-                        run_metadata = tf.RunMetadata()
-                        summary_str, _, loss_value, top1_value, top5_value, __ = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
-                                                                                      feed_dict={dataset_handle: training_handle, queue_selector: 0, keepp_pl: keep_prob }, options=run_options, run_metadata=run_metadata)
+                while True:
+                    try:
+                        start_time = time.time()
 
-                        train_writer.add_run_metadata(run_metadata, 'epoch %d' % sum_step )
-                        train_writer.add_summary(summary_str, sum_step )
-                        train_writer.flush()
+                        # Log training runtime statistics
+                        if np.mod(train_btch, trainParams.sum_interval) == 0:
 
-                        sess.run([reset_op])
-                    else:
-                        _, loss_value, top1_value, top5_value, __ = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
-                                                                          feed_dict={dataset_handle: training_handle, queue_selector: 0, keepp_pl: keep_prob})
+                            summary_str, _, loss_value, top1_value, top5_value, __ = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
+                                                                                          feed_dict={dataset_handle: training_handle, queue_selector: 0, keepp_pl: model.keep_prob})
 
-                    duration = time.time() - start_time
-                    print ('%s_run_%d: TRAIN epoch %d, %d/%d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
-                           (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_train - 1, model.batch_size/duration, loss_value, top1_value, top5_value) )
+                            train_writer.add_summary(summary_str, sum_step )
+                            train_writer.flush()
+
+                            sum_step += 1
+                            sess.run([reset_op])
+                        else:
+                            _, loss_value, top1_value, top5_value, __ = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
+                                                                              feed_dict={dataset_handle: training_handle, queue_selector: 0, keepp_pl: model.keep_prob})
+
+                        duration = time.time() - start_time
+                        train_btch += 1
+
+                        print ('%s_run_%d: TRAIN epoch %d, step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
+                               (trainParams.runName, trainParams.n + 1, epoch, train_btch, model.batch_size/duration, loss_value, top1_value, top5_value) )
+
+                    except tf.errors.OutOfRangeError:
+                        break
 
                 # Evaluate
                 sess.run([reset_op])
-                for bthc in range(nsteps_eval):
-                    sum_step = trainParams.sumPerEpoch * epoch + bthc // np.ceil(nsteps_eval / trainParams.sumPerEpoch)
+                sess.run(test_iterator.initializer)
+                while True:
+                    try:
+                        start_time = time.time()
 
-                    keep_prob = 1.0  # Dynamic control of dropout rate
-
-                    start_time = time.time()
-
-                    # Log testing runtime statistics
-                    if np.mod(bthc + 1, np.ceil(nsteps_eval / trainParams.sumPerEpoch)) == 0:
-                        summary_str, loss_value, top1_value, top5_value, _ = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
-                                                                                   feed_dict={dataset_handle: testing_handle, queue_selector: 1, keepp_pl: keep_prob})
-                        test_writer.add_summary(summary_str, sum_step )
-                        test_writer.flush()
-
-                        sess.run([reset_op])
-                    else:
                         loss_value, top1_value, top5_value, _ = sess.run([avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
-                                                                      feed_dict={dataset_handle: testing_handle, queue_selector: 1, keepp_pl: keep_prob})
+                                                                                      feed_dict={dataset_handle: testing_handle, queue_selector: 1, keepp_pl: 1})
 
+                        duration = time.time() - start_time
+                        print('%s_run_%d: TEST epoch %d,step %d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
+                              (trainParams.runName, trainParams.n + 1, epoch, eval_btch, model.batch_size / duration, loss_value, top1_value, top5_value))
 
-                    duration = time.time() - start_time
-                    print('%s_run_%d: TEST epoch %d, %d/%d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
-                          (trainParams.runName, trainParams.n + 1, epoch, bthc, nsteps_eval - 1, model.batch_size/duration, loss_value, top1_value, top5_value))
+                        eval_btch += 1
 
+                    except tf.errors.OutOfRangeError:
+                        break
+
+                sess.run(test_iterator.initializer)
+                summary_str, loss_value, top1_value, top5_value, _ = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op, update_stats],
+                                                                              feed_dict={dataset_handle: testing_handle, queue_selector: 1, keepp_pl: 1})
+                test_writer.add_summary(summary_str, sum_step )
+                test_writer.flush()
 
                 # Save a checkpoint
                 if (epoch + 1) % 10 == 0 or (epoch + 1) == trainParams.numEpochs:
@@ -283,8 +295,6 @@ def run_training(trainParams):
 
         finally:
             print ('\n\ncleaning...')
-            coord.request_stop()
-            coord.join(threads)
             train_stats = sess.run(export_stats, {queue_selector: 0})
             test_stats = sess.run(export_stats, {queue_selector: 1})
             sess.close()

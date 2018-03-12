@@ -10,11 +10,13 @@ name = 'color-rkhs'
 N = 256     # VBR signal length
 nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
-batch_size = 8
+batch_size = 7
 lr = 0.0001
 
-trefClass = np.array(range(-80,80)).astype(np.int32)
+trefClass = np.array(range(-172,172)).astype(np.int32)
 sigma = 10
+
+keep_prob = 0.7
 
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
@@ -136,7 +138,6 @@ def loss(logits, labels):
 
 
 def training(loss):
-
     global_step = tf.Variable(0, name='global_step', trainable=False)
 
     optimizer = tf.train.AdamOptimizer(lr)

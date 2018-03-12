@@ -8,7 +8,7 @@ import os
 import scipy.io.wavfile as wf
 
 #### n of dataset augmentation
-nexpan = 40
+nexpan = 50
 #### ENCODE PARAMS
 blocksize = 512
 #### PATHs
@@ -47,7 +47,7 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
         except ValueError:
             print('################# AUDIO READ ERROR on file ' + audiofile + ' ###################')
             print('################# recovering... ###################')
-            os.system('ffmpeg -y -i ' + audiofile + ' ' + path + '/recovered_' + filename)
+            os.system('ffmpeg -nostats -loglevel quiet -y -i ' + audiofile + ' ' + path + '/recovered_' + filename)
 
             try:
                 rate, samples = wf.read(path + '/recovered_' + filename)
@@ -62,17 +62,22 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
         wf.write(path + '/' + dlyfilename + '.wav', rate, samplesdly)
 
         # Generate analyzer file with system flac
-        os.system('flac -f -b ' + str(blocksize) + ' ' + path + '/' + dlyfilename + '.wav')
-        os.system('flac -a ' + path + '/' + dlyfilename + '.flac')
+        os.system('flac --totally-silent -f -b ' + str(blocksize) + ' ' + path + '/' + dlyfilename + '.wav')
+        os.system('flac --totally-silent -a ' + path + '/' + dlyfilename + '.flac')
 
         try:
             tmpf = open(path + '/' + dlyfilename + '.ana', 'r')
             fstr = tmpf.read(-1)
+            tmpf.close()
         except IOError:
             print('################# AUDIO IO ERROR on file ' + dlyfilename + '.ana' + ' ###################')
             return -1, -1
 
         kval = np.array([k.split('=') for k in fstr.split()])
+
+        if kval.ndim < 2:
+            return -1, -1
+
         idx = np.nonzero(kval[:,0] == 'bits')
         bitratesignal = np.squeeze(kval[idx, 1])
 
@@ -81,9 +86,10 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
 
         bitratesignal.tofile(path + '/' + dlyfilename + '.bin')
 
-        os.remove(path + '/' + dlyfilename + '.wav')
-        os.remove(path + '/' + dlyfilename + '.flac')
-        os.remove(path + '/' + dlyfilename + '.ana')
+        os.system('rm -f ' + path + '/' + dlyfilename + '.wav')
+        os.system('rm -f ' + path + '/' + dlyfilename + '.flac')
+        os.system('rm -f ' + path + '/' + dlyfilename + '.ana')
+
 
     bitratesignal = np.fromfile(path + '/' + dlyfilename + '.bin')
 
@@ -92,6 +98,10 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
 
 def cleancomb(bitsig1, bitsig2):
     wsize = 24
+
+    sigsize = np.minimum(bitsig1.size, bitsig2.size)
+    bitsig1 = bitsig1[:sigsize]
+    bitsig2 = bitsig2[:sigsize]
 
     bitmat1 = np.resize(bitsig1, [np.ceil(bitsig1.size/wsize).astype(np.int32), wsize])
     bitmat2 = np.resize(bitsig2, [np.ceil(bitsig2.size/wsize).astype(np.int32), wsize])
@@ -148,9 +158,6 @@ def combFunc(params):
     delay_samples2 = params[4]
     id = params[5]
 
-    st = time.time()
-    #print('############################## start ' + st1['instrument'] + ' x ' + st2['instrument'])
-
     st1['type'] = list(tps.keys())[np.nonzero([s.count(st1['instrument']) for s in tps.values()])[0][0]]
     st2['type'] = list(tps.keys())[np.nonzero([s.count(st2['instrument']) for s in tps.values()])[0][0]]
 
@@ -171,8 +178,6 @@ def combFunc(params):
 
     tf_example = create_tf_example(st1, st2, id, cclass, sig1, sig2, dly1, dly2)
 
-    print('############################################# finished ' + st1['instrument'] + ' x ' + st2['instrument'] + ' in ' + str(time.time() - st))
-
     return tf_example
 
 
@@ -191,15 +196,14 @@ try:
 
     for xpan in range(nexpan):
         for file in os.listdir(metdir):
-            print (file)
             yml = yaml.load(open(os.path.join(metdir, file), 'r').read(-1))
 
             stems = yml['stems']
             nstems = len(stems)
 
-            print ('################################ gathering data from ' + yml['mix_filename'] + ' from xpan ' + str(xpan))
-
             combparams = list()
+
+            st = time.time()
 
             for s1 in range(nstems):
                 for s2 in range(s1+1,nstems):
@@ -216,11 +220,13 @@ try:
 
             tf_examples = pool.map(combFunc, combparams)
 
-            print('############################ writing tf examples')
             for tf_example in tf_examples:
                 if tf_example != -1:
                     writer.write(tf_example.SerializeToString())
 
+            print('################################ processed data from ' + yml['mix_filename'] + ' from xpan ' + str(xpan) + ' in ' + str(time.time() - st))
+
 finally:
     pool.terminate()
-    print ('ENDING: comb ' + st1['instrument'] + ' x ' + st2['instrument'])
+    writer.close()
+    print ('*********************** Total combinations written to tfrecorf file is ' + str(id))

@@ -23,6 +23,7 @@ shapeconv2 = [9, 3, 1, 48]
 shapeconv3 = [9, 1, 48, 24]
 shapeconv4 = [5, 1, 24, 8]
 
+keep_prob = 0.7
 fc1_nhidden = marray.size * 2
 nclass = len(marray)
 

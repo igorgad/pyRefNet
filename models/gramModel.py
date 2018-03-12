@@ -22,6 +22,7 @@ shapeconv2 = [9, 9, 3, 48]
 shapeconv3 = [9, 9, 48, 24]
 shapeconv4 = [5, 5, 24, 16]
 
+keep_prob = 0.7
 fc1_nhidden = trefClass.size * 2
 nclass = len(trefClass)
 
