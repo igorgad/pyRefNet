@@ -123,7 +123,7 @@ def get_class (inst1, inst2, type1, type2):
         combClass = 5
     elif type1 == type2:
             combClass = 4
-    elif type1 == 'voice' and type2 == 'voice':
+    elif type1 != 'voice' and type2 != 'voice':
             combClass = 3
     elif type1 == 'voice' or type2 == 'voice':
             combClass = 2
@@ -191,6 +191,7 @@ metdir = os.fsencode(metadata_dir)
 pool = multiprocessing.Pool(processes=2)
 
 id = 1
+lost = 0
 
 try:
 
@@ -223,6 +224,8 @@ try:
             for tf_example in tf_examples:
                 if tf_example != -1:
                     writer.write(tf_example.SerializeToString())
+                else:
+                    lost += 1
 
             print('################################ processed data from ' + yml['mix_filename'] + ' from xpan ' + str(xpan) + ' in ' + str(time.time() - st))
 
@@ -230,3 +233,4 @@ finally:
     pool.terminate()
     writer.close()
     print ('*********************** Total combinations written to tfrecorf file is ' + str(id))
+    print ('*********************** Total combinations lost ' + str(lost))

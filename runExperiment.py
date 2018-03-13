@@ -26,8 +26,8 @@ trainParams.hptext = {key:value for key, value in trainParams.__dict__.items() i
 print ('logdir ' + trainParams.log_dir)
 
 trainParams.ncombs = 192401
-trainParams.trainIds = np.random.randint(0, trainParams.ncombs, [np.int32(np.floor(trainParams.ncombs * 0.8))])
-trainParams.evalIds = np.setdiff1d(np.array(range(0,trainParams.ncombs)), trainParams.trainIds)
+trainParams.evalIds = np.random.randint(0, trainParams.ncombs, [np.int32(np.floor(trainParams.ncombs * 0.2))])
+trainParams.trainIds = np.setdiff1d(np.array(range(0,trainParams.ncombs)), trainParams.evalIds)
 trainParams.encode_blocksize = int(trainParams.datasetfile.split('blocksize')[1].split('.')[0])
 
 # Run experiments
