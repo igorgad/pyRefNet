@@ -10,7 +10,7 @@ import scipy.io.wavfile as wf
 #### n of dataset augmentation
 nexpan = 50
 #### ENCODE PARAMS
-blocksize = 512
+blocksize = 1152
 #### PATHs
 metadata_dir = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/METADATA/'
 audio_dir = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/Audio/'
@@ -37,7 +37,7 @@ def bytes_feature(value):
 def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
     path, filename = os.path.split(audiofile)
     basename = os.path.splitext(filename)[0]
-    dlyfilename = basename + '_dly' + str(delay)
+    dlyfilename = basename + '_blocksize' + str(blocksize) + '_dly' + str(delay)
 
     if not os.path.isfile(path + '/' + dlyfilename + '.bin'):
 

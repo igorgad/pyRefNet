@@ -67,15 +67,17 @@ def slice_examples(tf_example, N, nwin):
     sigmat1 = tf.reshape(sig1, [-1,N])
     sigmat2 = tf.reshape(sig2, [-1,N])
 
-    sigmat1 = tf.gather(sigmat1, tf.random_uniform((nwin,), maxval=tf.shape(sigmat1)[0], dtype=tf.int32), axis=0)
-    sigmat2 = tf.gather(sigmat2, tf.random_uniform((nwin,), maxval=tf.shape(sigmat2)[0], dtype=tf.int32), axis=0)
+    wins = tf.random_uniform((nwin,), maxval=tf.shape(sigmat1)[0], dtype=tf.int32)
+
+    sigmat1 = tf.gather(sigmat1, wins, axis=0)
+    sigmat2 = tf.gather(sigmat2, wins, axis=0)
 
     ins = tf.stack((sigmat1, sigmat2), axis=2)
 
     return ins, ref, tf.string_join([type1, ' x ', type2])
 
 
-def add_data_pipeline(batch_size, train_ids, eval_ids, handle, datasetfile, classes, numepochs):
+def add_data_pipeline(batch_size, train_ids, eval_ids, handle, datasetfile, classes):
 
     with tf.name_scope('dataset') as scope:
         tfdataset = tf.data.TFRecordDataset(datasetfile)
@@ -183,7 +185,7 @@ def run_training(trainParams):
         dataset_handle = tf.placeholder(tf.string, shape=[])
 
         examples, train_iterator, test_iterator = add_data_pipeline(model.batch_size, trainParams.trainIds, trainParams.evalIds, dataset_handle,
-                                                                    trainParams.datasetfile, trainParams.combSets, trainParams.numEpochs)
+                                                                    trainParams.datasetfile, trainParams.combSets)
         ins = examples[0]
         lbs = examples[1]
         typecombs = examples[2]
