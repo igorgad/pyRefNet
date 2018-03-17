@@ -13,8 +13,8 @@ nsigs = 2   # Amount of signals
 batch_size = 7
 lr = 0.0001
 
-trefClass = np.array(range(-172,172)).astype(np.int32)
-sigma = 10
+trefClass = np.array(range(-80,80)).astype(np.int32)
+sigma = 1
 
 keep_prob = 0.7
 
@@ -63,8 +63,13 @@ def inference(ins, keep_prob):
 
         hs = ITL.gspace_layer(conv1, Sigma)
 
-        tf.summary.image('rkhs', hs)
+        tf.summary.image('rkhs_color', hs)
         tf.summary.scalar('sigma', Sigma)
+
+        # [hxx, hyy, hxy] = tf.unstack(hs, axis=3)
+        # tf.summary.image('rkhs_xx', tf.expand_dims(hxx,axis=3))
+        # tf.summary.image('rkhs_yy', tf.expand_dims(hyy,axis=3))
+        # tf.summary.image('rkhs_xy', tf.expand_dims(hxy,axis=3))
 
     # Conv 2 Layer
     with tf.name_scope('conv_2'):

@@ -90,8 +90,8 @@ def add_data_pipeline(batch_size, train_ids, eval_ids, handle, datasetfile, clas
         train_dataset = train_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin), num_parallel_calls=4)
         test_dataset  = test_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin), num_parallel_calls=4)
 
-        train_dataset = train_dataset.shuffle(512, reshuffle_each_iteration=True)
-        test_dataset = test_dataset.shuffle(512, reshuffle_each_iteration=True)
+        train_dataset = train_dataset.shuffle(2048, reshuffle_each_iteration=True)
+        test_dataset = test_dataset.shuffle(2048, reshuffle_each_iteration=True)
 
         train_dataset = train_dataset.prefetch(buffer_size=512)
         test_dataset  = test_dataset.prefetch(buffer_size=512)
@@ -105,7 +105,6 @@ def add_data_pipeline(batch_size, train_ids, eval_ids, handle, datasetfile, clas
 
         train_iterator = train_dataset.make_initializable_iterator()
         test_iterator = test_dataset.make_initializable_iterator()
-
 
     return next_element, train_iterator, test_iterator
 
