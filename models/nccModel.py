@@ -10,7 +10,8 @@ name = 'ncc'
 N = 256     # VBR signal length
 nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
-batch_size = 20
+OR = 4      # Overlap Ratio
+batch_size = 16
 lr = 0.0001
 
 marray = np.array(range(-80,80)).astype(np.int32) # marray vary from -80 -79 ... 79

@@ -26,7 +26,7 @@ trainParams.blocksize = trainParams.datasetfile.split('blocksize')[1].split('.')
 trainParams.hptext = {key:value for key, value in trainParams.__dict__.items() if not key.startswith('__') and not callable(key)}
 print ('logdir ' + trainParams.log_dir)
 
-trainParams.ncombs = 66874 #192401
+trainParams.ncombs = 192401
 trainParams.evalIds = np.random.randint(0, trainParams.ncombs, [np.int32(np.floor(trainParams.ncombs * 0.2))])
 trainParams.trainIds = np.setdiff1d(np.array(range(0,trainParams.ncombs)), trainParams.evalIds)
 trainParams.encode_blocksize = int(trainParams.datasetfile.split('blocksize')[1].split('.')[0])

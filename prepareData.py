@@ -7,11 +7,14 @@ import yaml
 import os
 import scipy.io.wavfile as wf
 
+maxSamplesDelay = 88200
 #### n of dataset augmentation
 nexpan = 50
 #### ENCODE PARAMS
 blocksize = 1152
+maxBlockDelay = maxSamplesDelay // blocksize
 #### PATHs
+active_dir = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/Annotations/Instrument_Activations/ACTIVATION_CONF/'
 metadata_dir = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/METADATA/'
 audio_dir = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/Audio/'
 tfrecordfile = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/bitrate_medleydb_blocksize' + str(blocksize) + '.tfrecord'
@@ -96,26 +99,19 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
     return bitratesignal, delay // blocksize
 
 
-def cleancomb(bitsig1, bitsig2):
-    wsize = 24
+def resample_labvecs(reftime, labvec1, labvec2):
+    dtime = np.diff(reftime)
 
-    sigsize = np.minimum(bitsig1.size, bitsig2.size)
-    bitsig1 = bitsig1[:sigsize]
-    bitsig2 = bitsig2[:sigsize]
+    labt1 = np.hstack([np.ones(int(dtime[i] / (1 / 44100)), np.float32) * labvec1[i] for i in range(dtime.size)])
+    labt2 = np.hstack([np.ones(int(dtime[i] / (1 / 44100)), np.float32) * labvec2[i] for i in range(dtime.size)])
 
-    bitmat1 = np.resize(bitsig1, [np.ceil(bitsig1.size/wsize).astype(np.int32), wsize])
-    bitmat2 = np.resize(bitsig2, [np.ceil(bitsig2.size/wsize).astype(np.int32), wsize])
+    labmat1 = np.resize(labt1, [np.ceil(labt1.size/blocksize).astype(np.int32), blocksize])
+    labmat2 = np.resize(labt2, [np.ceil(labt2.size/blocksize).astype(np.int32), blocksize])
 
-    bitmean1 = np.mean(bitmat1, axis=1)
-    bitmean2 = np.mean(bitmat2, axis=1)
+    labmean1 = np.mean(labmat1, axis=1)
+    labmean2 = np.mean(labmat2, axis=1)
 
-    good_windows = np.int32(bitmean1 > 0) & np.int32(bitmean2 > 0)
-    gwindex = np.nonzero(good_windows)
-
-    fbitsig1 = bitmat1[gwindex, :].reshape(-1)
-    fbitsig2 = bitmat2[gwindex, :].reshape(-1)
-
-    return fbitsig1, fbitsig2
+    return labmean1, labmean2
 
 def get_class (inst1, inst2, type1, type2):
 
@@ -133,7 +129,7 @@ def get_class (inst1, inst2, type1, type2):
     return combClass
 
 
-def create_tf_example(st1, st2, id, cclass, sig1, sig2, dly1, dly2):
+def create_tf_example(st1, st2, id, cclass, sig1, sig2, dly1, dly2, labm1, labm2):
 
     tf_example = tf.train.Example(features=tf.train.Features(feature={
         'comb/id'   : int64_feature(id),
@@ -144,7 +140,10 @@ def create_tf_example(st1, st2, id, cclass, sig1, sig2, dly1, dly2):
         'comb/type2': bytes_feature(os.fsencode(st2['type'])),
         'comb/sig1' : bytes_feature(sig1.tostring()),
         'comb/sig2' : bytes_feature(sig2.tostring()),
+        'comb/lab1' : bytes_feature(labm1.tostring()),
+        'comb/lab2' : bytes_feature(labm2.tostring()),
         'comb/ref'  : int64_feature(dly2 - dly1),
+        'comb/label': int64_feature(dly2 - dly1 + maxBlockDelay + 1),
     }))
 
     return tf_example
@@ -157,6 +156,9 @@ def combFunc(params):
     delay_samples1 = params[3]
     delay_samples2 = params[4]
     id = params[5]
+    labvec1 = params[6]
+    labvec2 = params[7]
+    reftime = params[8]
 
     st1['type'] = list(tps.keys())[np.nonzero([s.count(st1['instrument']) for s in tps.values()])[0][0]]
     st2['type'] = list(tps.keys())[np.nonzero([s.count(st2['instrument']) for s in tps.values()])[0][0]]
@@ -174,9 +176,9 @@ def combFunc(params):
         print('################################# skipping comb' + st1['instrument'] + ' x ' + st2['instrument'])
         return -1
 
-    sig1, sig2 = cleancomb(sig1, sig2)
+    labm1, labm2 = resample_labvecs(reftime, labvec1, labvec2)
 
-    tf_example = create_tf_example(st1, st2, id, cclass, sig1, sig2, dly1, dly2)
+    tf_example = create_tf_example(st1, st2, id, cclass, sig1, sig2, dly1, dly2, labm1, labm2)
 
     return tf_example
 
@@ -187,8 +189,9 @@ writer = tf.python_io.TFRecordWriter(tfrecordfile)
 
 audiodir = os.fsencode(audio_dir)
 metdir = os.fsencode(metadata_dir)
+activedir = os.fsencode(active_dir)
 
-pool = multiprocessing.Pool(processes=2)
+pool = multiprocessing.Pool(processes=4)
 
 id = 1
 lost = 0
@@ -198,6 +201,10 @@ try:
     for xpan in range(nexpan):
         for file in os.listdir(metdir):
             yml = yaml.load(open(os.path.join(metdir, file), 'r').read(-1))
+
+
+            lab = open(os.path.join(activedir, file.split(b'_METADATA.yaml')[0] + b'_ACTIVATION_CONF.lab'), 'r').read(-1)
+            labmat = np.stack([np.fromstring(lb, dtype=np.float32, sep=',') for lb in lab.split('\n')[1:-1]])
 
             stems = yml['stems']
             nstems = len(stems)
@@ -212,10 +219,18 @@ try:
                     st1 = stems['S%02d' % (s1+1)]
                     st2 = stems['S%02d' % (s2+1)]
 
-                    dly1 = np.random.randint(0, 88200)
-                    dly2 = np.random.randint(0, 88200)
+                    dly1 = np.random.randint(0, maxSamplesDelay)
+                    dly2 = np.random.randint(0, maxSamplesDelay)
 
-                    combparams.append([yml, st1, st2, dly1, dly2, id])
+                    labvec1 = labmat[:,s1 + 1]
+                    reftime = labmat[:,0]
+
+                    if s2 + 1 > labmat.shape[1] - 1:
+                        labvec2 = np.ones(labmat.shape[0], np.float32)
+                    else:
+                        labvec2 = labmat[:,s2 + 1]
+
+                    combparams.append([yml, st1, st2, dly1, dly2, id, labvec1, labvec2, reftime])
 
                     id += 1
 

@@ -10,6 +10,7 @@ name = 'gram'
 N = 256     # VBR signal length
 nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
+OR = 4      # Overlap Ratio
 batch_size = 48
 lr = 0.001
 
