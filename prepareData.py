@@ -12,7 +12,7 @@ maxSamplesDelay = 88200
 nexpan = 50
 #### ENCODE PARAMS
 blocksize = 1152
-maxBlockDelay = maxSamplesDelay // blocksize
+maxBlockDelay = 1 + maxSamplesDelay // blocksize
 #### PATHs
 active_dir = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/Annotations/Instrument_Activations/ACTIVATION_CONF/'
 metadata_dir = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/METADATA/'
@@ -85,7 +85,7 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
         bitratesignal = np.squeeze(kval[idx, 1])
 
         bitratesignal = np.int32(bitratesignal)[1:]
-        bitratesignal = np.float32((bitratesignal - np.mean(bitratesignal)) / np.std(bitratesignal))
+        bitratesignal = np.float32((bitratesignal - np.mean(bitratesignal)) / np.std(bitratesignal)) ## standardization
 
         bitratesignal.tofile(path + '/' + dlyfilename + '.bin')
 

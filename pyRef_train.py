@@ -2,6 +2,7 @@
 import os
 import time
 import tensorflow as tf
+from tensorflow.python.client import timeline
 import numpy as np
 import tfplot
 import models.rkhsModel as model #Chose model here!!!
@@ -42,8 +43,8 @@ def filter_perwindow_examples(tf_example, N, nwin, OR):
     sig1 = tf.reshape(tf.decode_raw(parsed_features['comb/sig1'], tf.float32), [-1])
     sig2 = tf.reshape(tf.decode_raw(parsed_features['comb/sig2'], tf.float32), [-1])
 
-    nw1 = 1 + OR * tf.shape(sig1)[0] // N
-    nw2 = 1 + OR * tf.shape(sig2)[0] // N
+    nw1 = OR * tf.shape(sig1)[0] // N
+    nw2 = OR * tf.shape(sig2)[0] // N
 
     return tf.logical_and(tf.less_equal(nwin,nw1), tf.less_equal(nwin,nw2))
 
@@ -67,12 +68,15 @@ def slice_examples(tf_example, N, nwin, OR, selected_class):
     labmat2 = tf.contrib.signal.frame(lab2, N, N // OR, pad_end=True, pad_value=0, axis=-1)
 
     # Perform random sample of windows
-    wins = tf.random_uniform((nwin,), maxval=tf.shape(sigmat1)[0], dtype=tf.int32)
+    wins = tf.random_uniform((nwin,), maxval=tf.shape(labmat1)[0], dtype=tf.int32)
 
     sigmat1 = tf.gather(sigmat1, wins, axis=0)
     sigmat2 = tf.gather(sigmat2, wins, axis=0)
     labmean1 = tf.reduce_mean(tf.gather(labmat1, wins, axis=0), axis=1)
     labmean2 = tf.reduce_mean(tf.gather(labmat2, wins, axis=0), axis=1)
+
+    sigmat1 = tf.squeeze(tf.image.per_image_standardization(tf.expand_dims(sigmat1, axis=2)), axis=2)
+    sigmat2 = tf.squeeze(tf.image.per_image_standardization(tf.expand_dims(sigmat2, axis=2)), axis=2)
 
     ins = tf.stack((sigmat1, sigmat2), axis=2)
 
@@ -87,46 +91,48 @@ def slice_examples(tf_example, N, nwin, OR, selected_class):
 def add_data_pipeline(batch_size, train_ids, eval_ids, handle, datasetfile, classes):
 
     with tf.name_scope('dataset') as scope:
-        tfdataset = tf.data.TFRecordDataset(datasetfile)
-        # tfdataset = tfdataset.filter(lambda ex: filter_perclass_examples(ex, classes))
-        tfdataset = tfdataset.filter(lambda ex: filter_perwindow_examples(ex, model.N, model.nwin, model.OR))
+        with tf.device('/cpu:0'):
+            tfdataset = tf.data.TFRecordDataset(datasetfile)
+            tfdataset = tfdataset.filter(lambda ex: filter_perclass_examples(ex, classes))
+            tfdataset = tfdataset.filter(lambda ex: filter_perwindow_examples(ex, model.N, model.nwin, model.OR))
 
-        train_dataset = tfdataset.filter(lambda ex: filter_split_examples(ex, train_ids))
-        test_dataset  = tfdataset.filter(lambda ex: filter_split_examples(ex, eval_ids))
+            train_dataset = tfdataset.filter(lambda ex: filter_split_examples(ex, train_ids))
+            test_dataset  = tfdataset.filter(lambda ex: filter_split_examples(ex, eval_ids))
 
-        train_dataset = train_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin, model.OR, classes), num_parallel_calls=4)
-        test_dataset  = test_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin, model.OR, classes), num_parallel_calls=4)
+            train_dataset = train_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin, model.OR, classes), num_parallel_calls=4)
+            test_dataset  = test_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin, model.OR, classes), num_parallel_calls=4)
 
-        train_dataset = train_dataset.shuffle(2048, reshuffle_each_iteration=True)
-        test_dataset = test_dataset.shuffle(2048, reshuffle_each_iteration=True)
+            train_dataset = train_dataset.shuffle(10000, reshuffle_each_iteration=True)
+            test_dataset = test_dataset.shuffle(10000, reshuffle_each_iteration=True)
 
-        train_dataset = train_dataset.prefetch(buffer_size=512)
-        test_dataset  = test_dataset.prefetch(buffer_size=512)
+            train_dataset = train_dataset.prefetch(buffer_size=2048)
+            test_dataset  = test_dataset.prefetch(buffer_size=2048)
 
-        train_dataset = train_dataset.batch(batch_size)
-        test_dataset  = test_dataset.batch(batch_size)
+            train_dataset = train_dataset.batch(batch_size)
+            test_dataset  = test_dataset.batch(batch_size)
 
-        iterator = tf.data.Iterator.from_string_handle(
-            handle, train_dataset.output_types, train_dataset.output_shapes)
-        next_element = iterator.get_next()
+            iterator = tf.data.Iterator.from_string_handle(
+                handle, train_dataset.output_types, train_dataset.output_shapes)
+            next_element = iterator.get_next()
 
-        train_iterator = train_dataset.make_initializable_iterator()
-        test_iterator = test_dataset.make_initializable_iterator()
+            train_iterator = train_dataset.make_initializable_iterator()
+            test_iterator = test_dataset.make_initializable_iterator()
 
     return next_element, train_iterator, test_iterator
 
 
 def add_summaries(loss, eval1, eval5):
     with tf.name_scope('summ') as scope:
-        avg_loss, avg_loss_op = tf.contrib.metrics.streaming_mean(loss)
-        avg_top1, avg_top1_op = tf.contrib.metrics.streaming_mean(eval1)
-        avg_top5, avg_top5_op = tf.contrib.metrics.streaming_mean(eval5)
+        with tf.device('/cpu:0'):
+            avg_loss, avg_loss_op = tf.contrib.metrics.streaming_mean(loss)
+            avg_top1, avg_top1_op = tf.contrib.metrics.streaming_mean(eval1)
+            avg_top5, avg_top5_op = tf.contrib.metrics.streaming_mean(eval5)
 
-        reset_op = tf.local_variables_initializer()
+            reset_op = tf.local_variables_initializer()
 
-        tf.summary.scalar('avg_loss', avg_loss)
-        tf.summary.scalar('avg_top1', avg_top1)
-        tf.summary.scalar('avg_top5', avg_top5)
+            tf.summary.scalar('avg_loss', avg_loss)
+            tf.summary.scalar('avg_top1', avg_top1)
+            tf.summary.scalar('avg_top5', avg_top5)
 
     return avg_loss_op, avg_top1_op, avg_top5_op, reset_op
 
@@ -158,18 +164,35 @@ def create_stats_figure(labels, probs):
 # TODO: ideally these tables should be cleaned after each epoch
 def add_comb_stats(correct1, correct5, typecombs, table_selector):
     with tf.name_scope('combStats') as scope:
-        train_update_ops, train_export_ops = add_tables(correct1, correct5, typecombs)
-        test_update_ops, test_export_ops = add_tables(correct1, correct5, typecombs)
+        with tf.device('/cpu:0'):
+            train_update_ops, train_export_ops = add_tables(correct1, correct5, typecombs)
+            test_update_ops, test_export_ops = add_tables(correct1, correct5, typecombs)
 
-        update_stats, export_stats = tf.cond(tf.equal(table_selector, 0), lambda: [train_update_ops, train_export_ops], lambda: [test_update_ops, test_export_ops])
+            update_stats, export_stats = tf.cond(tf.equal(table_selector, 0), lambda: [train_update_ops, train_export_ops], lambda: [test_update_ops, test_export_ops])
 
-        top1_plot_op = tfplot.plot(create_stats_figure, [export_stats[0][0], export_stats[0][1]])
-        top5_plot_op = tfplot.plot(create_stats_figure, [export_stats[1][0], export_stats[1][1]])
+            top1_plot_op = tfplot.plot(create_stats_figure, [export_stats[0][0], export_stats[0][1]])
+            top5_plot_op = tfplot.plot(create_stats_figure, [export_stats[1][0], export_stats[1][1]])
 
-        tf.summary.image('top1_typecomb', tf.expand_dims(top1_plot_op, 0), max_outputs=1)
-        tf.summary.image('top5_typecomb', tf.expand_dims(top5_plot_op, 0), max_outputs=1)
+            tf.summary.image('top1_typecomb', tf.expand_dims(top1_plot_op, 0), max_outputs=1)
+            tf.summary.image('top5_typecomb', tf.expand_dims(top5_plot_op, 0), max_outputs=1)
 
     return update_stats, export_stats
+
+def create_confusion_image(confusion_data):
+    fig, ax = tfplot.subplots()
+    ax.imshow(confusion_data)
+    fig.set_size_inches(8, 8)
+    return fig
+
+def add_confusion_matrix(logits, labels):
+    with tf.name_scope('confusionMatrix') as scope:
+        with tf.device('/cpu:0'):
+            predictions = tf.argmax(logits,1)
+            confusion = tf.confusion_matrix(labels=labels, predictions=predictions)
+
+            confusion_img = tfplot.plot(create_confusion_image, [confusion])
+            tf.summary.image('confusion_matrix', tf.expand_dims(confusion_img,0), max_outputs=1)
+
 
 def add_hyperparameters_textsum(trainParams):
     table = PrettyTable(['hparams', 'value'])
@@ -203,13 +226,17 @@ def run_training(trainParams):
 
         avg_loss_op, avg_top1_op, avg_top5_op, reset_op = add_summaries(loss, eval_top1, eval_top5)
         update_stats, export_stats = add_comb_stats(correct1, correct5, typecombs, queue_selector)
+        add_confusion_matrix(logits, lbs)
 
         summary = tf.summary.merge_all()
 
         init = tf.global_variables_initializer()
         saver = tf.train.Saver()
 
-        sess = tf.Session(config=tf.ConfigProto(log_device_placement=False))
+        config = tf.ConfigProto()
+        config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+
+        sess = tf.Session(config=config)
         train_writer = tf.summary.FileWriter(trainParams.log_dir + '/train', sess.graph)
         test_writer = tf.summary.FileWriter(trainParams.log_dir + '/test')
 
@@ -302,7 +329,7 @@ def run_training(trainParams):
                     saver.save(sess, checkpoint_file, global_step=epoch)
 
         finally:
-            print ('\n\ncleaning...')
+            print('finishing...')
             train_stats = sess.run(export_stats, {queue_selector: 0})
             test_stats = sess.run(export_stats, {queue_selector: 1})
             sess.close()

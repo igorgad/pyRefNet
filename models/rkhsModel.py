@@ -8,13 +8,13 @@ name = 'color-rkhs'
 # TODO - encapsulate network params into a netparam dict
 ##### NETWORK PARAMS #####
 N = 256     # VBR signal length
-nwin = 32   # Number of windows
+nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
-OR = 4      # Overlap Ratio
-batch_size = 16
-lr = 0.0001
+OR = 4      # Frame Overlap Ratio
+batch_size = 32
+lr = 0.0005
 
-trefClass = np.array(range(-80,80)).astype(np.int32)
+trefClass = np.array(range(2 * (1 + (88200//1152)))).astype(np.int32)
 sigma = 10
 
 kp = 0.7
@@ -22,16 +22,16 @@ kp = 0.7
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
 
-shapeconv2 = [9, 9, 3, 48]
-shapeconv3 = [9, 9, 48, 24]
-shapeconv4 = [5, 5, 24, 8]
+shapeconv2 = [9, 9, 3, 32]
+shapeconv3 = [5, 5, 32, 16]
+shapeconv4 = [4, 4, 16, 8]
 
-fc1_nhidden = trefClass.size * 2
+fc1_nhidden = trefClass.size * 4
 nclass = len(trefClass)
 
-medconvtrain = True
+medconvtrain = False
 
-hptext = {'model_name': name, 'N': N, 'nwin': nwin, 'lr': lr, 'medconvtrain': medconvtrain, 'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden, 'nclass': nclass}
+hptext = {'model_name': name, 'N': N, 'nwin': nwin, 'lr': lr, 'kp': kp, 'medconvtrain': medconvtrain, 'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden, 'nclass': nclass}
 ##########################
 
 
@@ -67,10 +67,10 @@ def inference(ins, keep_prob):
         tf.summary.image('rkhs_color', hs)
         tf.summary.scalar('sigma', Sigma)
 
-        # [hxx, hyy, hxy] = tf.unstack(hs, axis=3)
+        hxx, hyy, hxy = tf.unstack(hs, axis=3)
         # tf.summary.image('rkhs_xx', tf.expand_dims(hxx,axis=3))
         # tf.summary.image('rkhs_yy', tf.expand_dims(hyy,axis=3))
-        # tf.summary.image('rkhs_xy', tf.expand_dims(hxy,axis=3))
+        tf.summary.image('rkhs_xy', tf.expand_dims(hxy,axis=3))
 
     # Conv 2 Layer
     with tf.name_scope('conv_2'):

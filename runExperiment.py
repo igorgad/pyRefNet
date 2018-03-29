@@ -14,13 +14,13 @@ class trainParams:
 trainParams.numEpochs   = 200
 trainParams.combSets    = [3, 4, 5]
 
-trainParams.datasetfile  = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/bitrate_medleydb_blocksize1152.tfrecord'
+trainParams.datasetfile  = '/home/pepeu/workspace/DOC/Dataset/bitrate_medleydb_blocksize1152.tfrecord'
 trainParams.log_root     = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/tensorlogs/'
 
 trainParams.runName      = "datasetapi-{}_N{}_NW{}".format(pyRef_train.model.name, pyRef_train.model.N, pyRef_train.model.nwin)
 trainParams.n = sum(1 for f in os.listdir(trainParams.log_root) if os.path.isdir(os.path.join(trainParams.log_root, f)))
 trainParams.log_dir = "{}{}_run_{}".format(trainParams.log_root, trainParams.runName, trainParams.n+1)
-trainParams.sum_interval = 400
+trainParams.sum_interval = 100
 trainParams.blocksize = trainParams.datasetfile.split('blocksize')[1].split('.')[0]
 
 trainParams.hptext = {key:value for key, value in trainParams.__dict__.items() if not key.startswith('__') and not callable(key)}
