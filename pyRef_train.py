@@ -43,7 +43,7 @@ def add_tables(correct1, correct5, typecombs):
 
 
 def create_stats_figure(labels, probs):
-    labels = [os.fsdecode(i) for i in labels]
+    labels = np.array([os.fsdecode(i) for i in labels])
     fig, ax = tfplot.subplots()
     ax.bar(np.arange(probs.size), probs, 0.35)
     ax.set_xticks(np.arange(labels.size))

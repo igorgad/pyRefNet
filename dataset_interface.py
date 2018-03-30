@@ -145,8 +145,8 @@ def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
             train_dataset = tfdataset.filter(lambda feat: filter_split_dataset_from_ids(feat, train_ids)).map(parse_example)
             test_dataset = tfdataset.filter(lambda feat: filter_split_dataset_from_ids(feat, eval_ids)).map(parse_example)
 
-            train_dataset = train_dataset.shuffle(10000, reshuffle_each_iteration=True)
-            test_dataset = test_dataset.shuffle(10000, reshuffle_each_iteration=True)
+            train_dataset = train_dataset.shuffle(4096, reshuffle_each_iteration=True)
+            test_dataset = test_dataset.shuffle(4096, reshuffle_each_iteration=True)
 
             train_dataset = train_dataset.prefetch(buffer_size=4096)
             test_dataset = test_dataset.prefetch(buffer_size=4096)
