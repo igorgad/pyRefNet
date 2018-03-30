@@ -2,123 +2,12 @@
 import os
 import time
 import tensorflow as tf
-from tensorflow.python.client import timeline
 import numpy as np
 import tfplot
 import models.rkhsModel as model #Chose model here!!!
+import dataset_interface
 
 from prettytable import PrettyTable
-
-features = {
-        'comb/id': tf.FixedLenFeature([], tf.int64),
-        'comb/class': tf.FixedLenFeature([], tf.int64),
-        'comb/inst1': tf.FixedLenFeature([], tf.string),
-        'comb/inst2': tf.FixedLenFeature([], tf.string),
-        'comb/type1': tf.FixedLenFeature([], tf.string),
-        'comb/type2': tf.FixedLenFeature([], tf.string),
-        'comb/sig1' : tf.FixedLenFeature([], tf.string),
-        'comb/sig2' : tf.FixedLenFeature([], tf.string),
-        'comb/lab1' : tf.FixedLenFeature([], tf.string),
-        'comb/lab2' : tf.FixedLenFeature([], tf.string),
-        'comb/ref'  : tf.FixedLenFeature([], tf.int64),
-        'comb/label': tf.FixedLenFeature([], tf.int64),
-    }
-
-
-def filter_split_examples(tf_example, ids):
-    parsed_features = tf.parse_single_example(tf_example, features)
-    id = parsed_features['comb/id']
-    return tf.reduce_any(tf.equal(id,ids))
-
-
-def filter_perclass_examples(tf_example, selected_class):
-    parsed_features = tf.parse_single_example(tf_example, features)
-    cls = parsed_features['comb/class']
-    return tf.reduce_any(tf.equal(cls,selected_class))
-
-
-def filter_perwindow_examples(tf_example, N, nwin, OR):
-    parsed_features = tf.parse_single_example(tf_example, features)
-
-    sig1 = tf.reshape(tf.decode_raw(parsed_features['comb/sig1'], tf.float32), [-1])
-    sig2 = tf.reshape(tf.decode_raw(parsed_features['comb/sig2'], tf.float32), [-1])
-
-    nw1 = OR * tf.shape(sig1)[0] // N
-    nw2 = OR * tf.shape(sig2)[0] // N
-
-    return tf.logical_and(tf.less_equal(nwin,nw1), tf.less_equal(nwin,nw2))
-
-
-def slice_examples(tf_example, N, nwin, OR, selected_class):
-    parsed_features = tf.parse_single_example(tf_example, features)
-
-    label = tf.cast(parsed_features['comb/label'], tf.int32)
-    type1 = tf.cast(parsed_features['comb/type1'], tf.string)
-    type2 = tf.cast(parsed_features['comb/type2'], tf.string)
-    cls = tf.cast(parsed_features['comb/class'], tf.int32)
-
-    sig1 = tf.reshape(tf.decode_raw(parsed_features['comb/sig1'], tf.float32), [-1])
-    sig2 = tf.reshape(tf.decode_raw(parsed_features['comb/sig2'], tf.float32), [-1])
-    lab1 = tf.reshape(tf.decode_raw(parsed_features['comb/lab1'], tf.float32), [-1])
-    lab2 = tf.reshape(tf.decode_raw(parsed_features['comb/lab2'], tf.float32), [-1])
-
-    sigmat1 = tf.contrib.signal.frame(sig1, N, N // OR, pad_end=True, pad_value=0, axis=-1)
-    sigmat2 = tf.contrib.signal.frame(sig2, N, N // OR, pad_end=True, pad_value=0, axis=-1)
-    labmat1 = tf.contrib.signal.frame(lab1, N, N // OR, pad_end=True, pad_value=0, axis=-1)
-    labmat2 = tf.contrib.signal.frame(lab2, N, N // OR, pad_end=True, pad_value=0, axis=-1)
-
-    # Perform random sample of windows
-    wins = tf.random_uniform((nwin,), maxval=tf.shape(labmat1)[0], dtype=tf.int32)
-
-    sigmat1 = tf.gather(sigmat1, wins, axis=0)
-    sigmat2 = tf.gather(sigmat2, wins, axis=0)
-    labmean1 = tf.reduce_mean(tf.gather(labmat1, wins, axis=0), axis=1)
-    labmean2 = tf.reduce_mean(tf.gather(labmat2, wins, axis=0), axis=1)
-
-    sigmat1 = tf.squeeze(tf.image.per_image_standardization(tf.expand_dims(sigmat1, axis=2)), axis=2)
-    sigmat2 = tf.squeeze(tf.image.per_image_standardization(tf.expand_dims(sigmat2, axis=2)), axis=2)
-
-    ins = tf.stack((sigmat1, sigmat2), axis=2)
-
-    at_least_one_window_active = tf.reduce_any(tf.logical_and(labmean1 > 0.5, labmean2 > 0.5))  # Check if there is at least one window pair (x_w and y_w) with the instruments active
-    is_from_selected_class = tf.reduce_any(tf.equal(cls, selected_class))  # Check if combination is from combination class of interest
-
-    label = tf.cond(tf.logical_and(at_least_one_window_active, is_from_selected_class), lambda: label, lambda: 0)
-
-    return ins, label, tf.string_join([type1, ' x ', type2])
-
-
-def add_data_pipeline(batch_size, train_ids, eval_ids, handle, datasetfile, classes):
-
-    with tf.name_scope('dataset') as scope:
-        with tf.device('/cpu:0'):
-            tfdataset = tf.data.TFRecordDataset(datasetfile)
-            tfdataset = tfdataset.filter(lambda ex: filter_perclass_examples(ex, classes))
-            tfdataset = tfdataset.filter(lambda ex: filter_perwindow_examples(ex, model.N, model.nwin, model.OR))
-
-            train_dataset = tfdataset.filter(lambda ex: filter_split_examples(ex, train_ids))
-            test_dataset  = tfdataset.filter(lambda ex: filter_split_examples(ex, eval_ids))
-
-            train_dataset = train_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin, model.OR, classes), num_parallel_calls=4)
-            test_dataset  = test_dataset.map(lambda ex: slice_examples(ex, model.N, model.nwin, model.OR, classes), num_parallel_calls=4)
-
-            train_dataset = train_dataset.shuffle(10000, reshuffle_each_iteration=True)
-            test_dataset = test_dataset.shuffle(10000, reshuffle_each_iteration=True)
-
-            train_dataset = train_dataset.prefetch(buffer_size=2048)
-            test_dataset  = test_dataset.prefetch(buffer_size=2048)
-
-            train_dataset = train_dataset.batch(batch_size)
-            test_dataset  = test_dataset.batch(batch_size)
-
-            iterator = tf.data.Iterator.from_string_handle(
-                handle, train_dataset.output_types, train_dataset.output_shapes)
-            next_element = iterator.get_next()
-
-            train_iterator = train_dataset.make_initializable_iterator()
-            test_iterator = test_dataset.make_initializable_iterator()
-
-    return next_element, train_iterator, test_iterator
 
 
 def add_summaries(loss, eval1, eval5):
@@ -154,6 +43,7 @@ def add_tables(correct1, correct5, typecombs):
 
 
 def create_stats_figure(labels, probs):
+    labels = [os.fsdecode(i) for i in labels]
     fig, ax = tfplot.subplots()
     ax.bar(np.arange(probs.size), probs, 0.35)
     ax.set_xticks(np.arange(labels.size))
@@ -213,8 +103,8 @@ def run_training(trainParams):
         queue_selector = tf.placeholder(tf.int32)
         dataset_handle = tf.placeholder(tf.string, shape=[])
 
-        examples, train_iterator, test_iterator = add_data_pipeline(model.batch_size, trainParams.trainIds, trainParams.evalIds, dataset_handle,
-                                                                    trainParams.datasetfile, trainParams.combSets)
+        examples, train_iterator, test_iterator = dataset_interface.add_defaul_dataset_pipeline(trainParams, model, dataset_handle)
+
         ins = examples[0]
         lbs = examples[1]
         typecombs = examples[2]
@@ -253,9 +143,8 @@ def run_training(trainParams):
         eval_btch = 0
 
         try:
-
             # Start the training loop.
-            for epoch in range(trainParams.numEpochs):
+            for epoch in range(trainParams.num_epochs):
 
                 # Train
                 sess.run(reset_op)

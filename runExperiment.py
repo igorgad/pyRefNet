@@ -11,8 +11,8 @@ class trainParams:
     pass
 
 # Fill pyRef_train.trainParams class with training parameters.
-trainParams.numEpochs   = 200
-trainParams.combSets    = [3, 4, 5]
+trainParams.num_epochs   = 200
+trainParams.selected_class    = [3, 4, 5]
 
 trainParams.datasetfile  = '/home/pepeu/workspace/DOC/Dataset/bitrate_medleydb_blocksize1152.tfrecord'
 trainParams.log_root     = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/tensorlogs/'
@@ -27,8 +27,8 @@ trainParams.hptext = {key:value for key, value in trainParams.__dict__.items() i
 print ('logdir ' + trainParams.log_dir)
 
 trainParams.ncombs = 192401
-trainParams.evalIds = np.random.randint(0, trainParams.ncombs, [np.int32(np.floor(trainParams.ncombs * 0.2))])
-trainParams.trainIds = np.setdiff1d(np.array(range(0,trainParams.ncombs)), trainParams.evalIds)
+trainParams.eval_ids = np.random.randint(0, trainParams.ncombs, [np.int32(np.floor(trainParams.ncombs * 0.2))])
+trainParams.train_ids = np.setdiff1d(np.array(range(0,trainParams.ncombs)), trainParams.eval_ids)
 trainParams.encode_blocksize = int(trainParams.datasetfile.split('blocksize')[1].split('.')[0])
 
 # Run experiments
