@@ -27,24 +27,32 @@ def parse_features_and_decode(tf_example):
 
     return parsed_features
 
+
 def filter_split_dataset_from_ids(parsed_features, ids):
     id = parsed_features['comb/id']
     return tf.reduce_any(tf.equal(id,ids))
 
 
-def filter_perclass_examples(parsed_features, selected_class):
+def filter_perclass(parsed_features, selected_class):
     cls = parsed_features['comb/class']
     return tf.reduce_any(tf.equal(cls,selected_class))
 
 
-def filter_perwindow_examples(parsed_features, N, nwin, OR):
+def filter_sigsize_leq_N(parsed_features, N):
+    sig1 = parsed_features['comb/sig1']
+    sig2 = parsed_features['comb/sig2']
+    sigsize = tf.minimum(tf.shape(sig1)[0], tf.shape(sig2)[0])
+    return tf.greater_equal(sigsize,N)
+
+
+def filter_perwindow(parsed_features, N, nwin, OR):
     sig1 = parsed_features['comb/sig1']
     sig2 = parsed_features['comb/sig2']
 
     nw1 = 1 + OR * tf.shape(sig1)[0] // N
     nw2 = 1 + OR * tf.shape(sig2)[0] // N
 
-    return tf.logical_and(tf.less_equal(nwin,nw1), tf.less_equal(nwin,nw2))
+    return tf.reduce_all([tf.less_equal(nwin,nw1), tf.less_equal(nwin,nw2)])
 
 
 def clean_from_activation_signal(parsed_features):
@@ -84,7 +92,7 @@ def prepare_input_with_random_sampling(parsed_features, N, nwin, OR):
     sigmat2 = tf.contrib.signal.frame(sig2, N, N // OR, pad_end=True, pad_value=0, axis=-1)
 
     # Random window sampling
-    wins = tf.random_uniform((nwin,), maxval=tf.shape(sigmat1)[0], dtype=tf.int32)
+    wins = tf.random_uniform((nwin,), maxval=tf.minimum(tf.shape(sigmat1)[0], tf.shape(sigmat2)[0]), dtype=tf.int32)
     sigmat1 = tf.gather(sigmat1, wins, axis=0)
     sigmat2 = tf.gather(sigmat2, wins, axis=0)
 
@@ -136,10 +144,11 @@ def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
             tfdataset = tf.data.TFRecordDataset(datasetfile)
             tfdataset = tfdataset.map(parse_features_and_decode, num_parallel_calls=4)
 
-            tfdataset = tfdataset.filter(lambda feat: filter_perclass_examples(feat, classes))
+            tfdataset = tfdataset.filter(lambda feat: filter_perclass(feat, classes))
             # tfdataset = tfdataset.map(lambda feat: replace_label_of_unselected_class(feat, classes))
             tfdataset = tfdataset.map(clean_from_activation_signal, num_parallel_calls=4)
-            tfdataset = tfdataset.filter(lambda feat: filter_perwindow_examples(feat, N, nwin, OR))
+            tfdataset = tfdataset.filter(lambda feat: filter_sigsize_leq_N(feat, N))
+            # tfdataset = tfdataset.filter(lambda feat: filter_perwindow(feat, N, nwin, OR))
             tfdataset = tfdataset.map(lambda feat: prepare_input_with_random_sampling(feat, N, nwin, OR), num_parallel_calls=4)
             # tfdataset = tfdataset.map(lambda feat: prepare_input_with_all_windows(feat, N, OR))
             train_dataset = tfdataset.filter(lambda feat: filter_split_dataset_from_ids(feat, train_ids)).map(parse_example)

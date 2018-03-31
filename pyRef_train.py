@@ -213,7 +213,7 @@ def run_training(trainParams):
                 test_writer.flush()
 
                 # Save a checkpoint
-                if (epoch + 1) % 10 == 0 or (epoch + 1) == trainParams.numEpochs:
+                if (epoch + 1) % 10 == 0 or (epoch + 1) == trainParams.num_epochs:
                     checkpoint_file = os.path.join(trainParams.log_dir, 'model.ckpt')
                     saver.save(sess, checkpoint_file, global_step=epoch)
 

@@ -12,7 +12,7 @@ nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
 OR = 4      # Frame Overlap Ratio
 batch_size = 32
-lr = 0.0005
+lr = 0.001
 
 trefClass = np.array(range(2 * (1 + (88200//1152)))).astype(np.int32)
 sigma = 10
@@ -22,16 +22,18 @@ kp = 0.7
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
 
-shapeconv2 = [9, 9, 3, 32]
-shapeconv3 = [5, 5, 32, 16]
-shapeconv4 = [4, 4, 16, 8]
+shapeconv2 = [5, 5, 3, 32]
+shapeconv3 = [3, 3, 32, 16]
+shapeconv4 = [3, 3, 16, 8]
 
-fc1_nhidden = trefClass.size * 4
+fc1_nhidden = trefClass.size * 2
 nclass = len(trefClass)
 
 medconvtrain = False
 
-hptext = {'model_name': name, 'N': N, 'nwin': nwin, 'lr': lr, 'kp': kp, 'medconvtrain': medconvtrain, 'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize, 'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden, 'nclass': nclass}
+hptext = {'model_name': name, 'N': N, 'nwin': nwin, 'lr': lr, 'kp': kp, 'medconvtrain': medconvtrain,
+          'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize,
+          'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden, 'nclass': nclass}
 ##########################
 
 
