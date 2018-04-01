@@ -26,12 +26,22 @@ def add_summaries(loss, eval1, eval5):
     return avg_loss_op, avg_top1_op, avg_top5_op, reset_op
 
 
+def sort_labels(labels):
+    labels = np.array([os.fsdecode(i) for i in labels])
+    vcc = [[i.replace(' ', ''), j.replace(' ', '')] for i, j in [lb.split('x') for lb in labels]]
+    slb = [sorted(i) for i in vcc]
+    sorted_labels = np.array([''.join([c[0], ' x ', c[1]]) for c in slb], np.chararray)
+    return sorted_labels
+
+
 def add_tables(correct1, correct5, typecombs):
     top1_typecomb_table = tf.contrib.lookup.MutableHashTable(tf.string, tf.float32, 0)
     top5_typecomb_table = tf.contrib.lookup.MutableHashTable(tf.string, tf.float32, 0)
 
-    update_top1_typecomb_table = top1_typecomb_table.insert(typecombs, tf.divide(tf.add(top1_typecomb_table.lookup(typecombs), tf.cast(correct1, tf.float32)), 2))
-    update_top5_typecomb_table = top5_typecomb_table.insert(typecombs, tf.divide(tf.add(top5_typecomb_table.lookup(typecombs), tf.cast(correct5, tf.float32)), 2))
+    sorted_typecombs = tf.py_func(sort_labels, [typecombs], tf.string)
+
+    update_top1_typecomb_table = top1_typecomb_table.insert(sorted_typecombs, tf.divide(tf.add(top1_typecomb_table.lookup(sorted_typecombs), tf.cast(correct1, tf.float32)), 2))
+    update_top5_typecomb_table = top5_typecomb_table.insert(sorted_typecombs, tf.divide(tf.add(top5_typecomb_table.lookup(sorted_typecombs), tf.cast(correct5, tf.float32)), 2))
 
     export_top1_typecomb_table = top1_typecomb_table.export()
     export_top5_typecomb_table = top5_typecomb_table.export()
@@ -47,7 +57,7 @@ def create_stats_figure(labels, probs):
     fig, ax = tfplot.subplots()
     ax.bar(np.arange(probs.size), probs, 0.35)
     ax.set_xticks(np.arange(labels.size))
-    ax.set_xticklabels(labels, rotation=-90, ha='center')
+    ax.set_xticklabels(labels, rotation=+90, ha='center')
     fig.set_tight_layout(True)
     return fig
 
@@ -68,11 +78,13 @@ def add_comb_stats(correct1, correct5, typecombs, table_selector):
 
     return update_stats, export_stats
 
+
 def create_confusion_image(confusion_data):
     fig, ax = tfplot.subplots()
     ax.imshow(confusion_data)
     fig.set_size_inches(8, 8)
     return fig
+
 
 def add_confusion_matrix(logits, labels):
     with tf.name_scope('confusionMatrix') as scope:
@@ -94,6 +106,7 @@ def add_hyperparameters_textsum(trainParams):
 
     print (table)
     return tf.summary.text('hyperparameters', tf.convert_to_tensor(table.get_html_string(format=True)))
+
 
 def run_training(trainParams):
 
