@@ -48,6 +48,14 @@ def inference(ins, keep_prob):
         bc1x = tf.Variable(0.0, trainable=medconvtrain)
         bc1y = tf.Variable(0.0, trainable=medconvtrain)
 
+        # wc = [wc1x, wc1y]
+        # bc = [bc1x, bc1y]
+        #
+        # def cloop(i):
+        #     return tf.nn.conv2d(tf.expand_dims(tf.gather(ins, i, axis=3), axis=3), wc[i], strides=[1, 1, 1, 1], padding='SAME') + bc[i]
+        #
+        # conv1 = tf.transpose(tf.map_fn(cloop, tf.range(2), dtype=tf.float32), [1, 2, 0, 3])
+
         [insx, insy] = tf.unstack(ins, axis=3)
         insx = tf.expand_dims(insx, axis=3)
         insy = tf.expand_dims(insy, axis=3)

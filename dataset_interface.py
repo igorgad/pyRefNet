@@ -33,6 +33,12 @@ def filter_split_dataset_from_ids(parsed_features, ids):
     return tf.reduce_any(tf.equal(id,ids))
 
 
+def filter_combinations_with_voice(parsed_features):
+    type1 = parsed_features['comb/type1']
+    type2 = parsed_features['comb/type2']
+    return tf.logical_not(tf.logical_or(tf.equal(type1, 'voice'), tf.equal(type2, 'voice')))
+
+
 def filter_perclass(parsed_features, selected_class):
     cls = parsed_features['comb/class']
     return tf.reduce_any(tf.equal(cls,selected_class))
@@ -144,7 +150,8 @@ def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
             tfdataset = tf.data.TFRecordDataset(datasetfile)
             tfdataset = tfdataset.map(parse_features_and_decode, num_parallel_calls=4)
 
-            tfdataset = tfdataset.filter(lambda feat: filter_perclass(feat, classes))
+            # tfdataset = tfdataset.filter(lambda feat: filter_perclass(feat, classes))
+            tfdataset = tfdataset.filter(filter_combinations_with_voice)
             # tfdataset = tfdataset.map(lambda feat: replace_label_of_unselected_class(feat, classes))
             tfdataset = tfdataset.map(clean_from_activation_signal, num_parallel_calls=4)
             tfdataset = tfdataset.filter(lambda feat: filter_sigsize_leq_N(feat, N))
