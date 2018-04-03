@@ -137,9 +137,7 @@ def loss(logits, labels):
     return tf.reduce_mean(cross_entropy, name='xentropy_mean')
 
 
-def training(loss):
-    global_step = tf.Variable(0, name='global_step', trainable=False)
-
+def training(loss, global_step):
     optimizer = tf.train.AdamOptimizer(lr)
     train_op = optimizer.minimize(loss, global_step=global_step)
 
