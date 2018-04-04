@@ -90,6 +90,12 @@ def replace_label_of_unselected_class(parsed_features, selected_class):
     return parsed_features
 
 
+def normalize_blocks(sigmat):
+    mean, var = tf.nn.moments(sigmat, axes=[0])
+    signorm = sigmat - mean / tf.sqrt(var)
+    return signorm
+
+
 def prepare_input_with_random_sampling(parsed_features, N, nwin, OR):
     sig1 = parsed_features['comb/sig1']
     sig2 = parsed_features['comb/sig2']
@@ -102,8 +108,8 @@ def prepare_input_with_random_sampling(parsed_features, N, nwin, OR):
     sigmat1 = tf.gather(sigmat1, wins, axis=0)
     sigmat2 = tf.gather(sigmat2, wins, axis=0)
 
-    sigmat1 = tf.squeeze(tf.image.per_image_standardization(tf.expand_dims(sigmat1, axis=2)), axis=2)
-    sigmat2 = tf.squeeze(tf.image.per_image_standardization(tf.expand_dims(sigmat2, axis=2)), axis=2)
+    sigmat1 = normalize_blocks(sigmat1)
+    sigmat2 = normalize_blocks(sigmat2)
 
     parsed_features['example/input'] = tf.stack((sigmat1, sigmat2), axis=2)
 
@@ -117,8 +123,8 @@ def prepare_input_with_all_windows(parsed_features, N, OR):
     sigmat1 = tf.contrib.signal.frame(sig1, N, N // OR, pad_end=True, pad_value=0, axis=-1)
     sigmat2 = tf.contrib.signal.frame(sig2, N, N // OR, pad_end=True, pad_value=0, axis=-1)
 
-    sigmat1 = tf.squeeze(tf.image.per_image_standardization(tf.expand_dims(sigmat1, axis=2)), axis=2)
-    sigmat2 = tf.squeeze(tf.image.per_image_standardization(tf.expand_dims(sigmat2, axis=2)), axis=2)
+    sigmat1 = normalize_blocks(sigmat1)
+    sigmat2 = normalize_blocks(sigmat2)
 
     parsed_features['example/input'] = tf.stack((sigmat1, sigmat2), axis=2)
 
@@ -139,8 +145,8 @@ def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
         with tf.device('/cpu:0'):
             train_ids = trainParams.train_ids
             eval_ids = trainParams.eval_ids
-            datasetfile = trainParams.datasetfile
-            classes = trainParams.selected_class
+            datasetfile = trainParams.dataset_file
+            # classes = trainParams.selected_class
 
             N = modelParams.N
             nwin = modelParams.nwin

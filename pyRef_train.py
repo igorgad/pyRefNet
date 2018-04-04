@@ -141,8 +141,8 @@ def start_training(trainParams):
         config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
 
         sess = tf.Session(config=config)
-        train_writer = tf.summary.FileWriter(trainParams.log_dir + '/train', sess.graph)
-        test_writer = tf.summary.FileWriter(trainParams.log_dir + '/test')
+        train_writer = tf.summary.FileWriter(trainParams.log_path_dir + '/train', sess.graph)
+        test_writer = tf.summary.FileWriter(trainParams.log_path_dir + '/test')
 
         training_handle = sess.run(train_iterator.string_handle())
         testing_handle = sess.run(test_iterator.string_handle())
@@ -161,16 +161,17 @@ def start_training(trainParams):
                 saver.restore(sess, ckpt.model_checkpoint_path)
             print ('loaded graph from dir %s' % trainParams.restore_from_dir[0])
 
-
+        gstep = 0
         try:
             # Start the training loop.
-            while True:
+            while gstep < trainParams.num_steps:
                 # Train
                 sess.run(reset_op)
                 sess.run(train_iterator.initializer)
 
                 run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                 run_metadata = tf.RunMetadata()
+
                 _, loss_value, top1_value, top5_value, __, gstep = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_stats, global_step],
                                                                      feed_dict={dataset_handle: training_handle, queue_selector: 0, keepp_pl: model.kp}, options=run_options,
                                                                      run_metadata=run_metadata)
@@ -178,13 +179,15 @@ def start_training(trainParams):
                 train_writer.add_run_metadata(run_metadata, 'stats_epoch %d' % gstep)
                 train_writer.flush()
 
+                print('%s_run_%d: TRAIN step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
+                      (trainParams.run_name, trainParams.n + 1, gstep, 0.0, loss_value, top1_value, top5_value))
+
                 while True:
                     try:
                         start_time = time.time()
 
                         # Log training runtime statistics
-                        if np.mod(gstep + 1, trainParams.sum_interval) == 0:
-
+                        if np.mod(gstep + 1, trainParams.summary_interval) == 0:
                             summary_str, _, loss_value, top1_value, top5_value, __, gstep = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_stats, global_step],
                                                                                                      feed_dict={dataset_handle: training_handle, queue_selector: 0, keepp_pl: model.kp})
 
@@ -199,7 +202,7 @@ def start_training(trainParams):
                         duration = time.time() - start_time
 
                         print ('%s_run_%d: TRAIN step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
-                               (trainParams.runName, trainParams.n + 1, gstep, model.batch_size/duration, loss_value, top1_value, top5_value) )
+                               (trainParams.run_name, trainParams.n + 1, gstep, model.batch_size/duration, loss_value, top1_value, top5_value) )
 
                     except tf.errors.OutOfRangeError:
                         break
@@ -216,7 +219,7 @@ def start_training(trainParams):
 
                         duration = time.time() - start_time
                         print('%s_run_%d: TEST step %d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
-                              (trainParams.runName, trainParams.n + 1, gstep, model.batch_size / duration, loss_value, top1_value, top5_value))
+                              (trainParams.run_name, trainParams.n + 1, gstep, model.batch_size / duration, loss_value, top1_value, top5_value))
 
                     except tf.errors.OutOfRangeError:
                         break
@@ -228,9 +231,8 @@ def start_training(trainParams):
                 test_writer.flush()
 
                 # Save a checkpoint
-                if (gstep + 1) % 10000 == 0:
-                    checkpoint_file = os.path.join(trainParams.log_dir, 'model.ckpt')
-                    saver.save(sess, checkpoint_file, global_step=gstep)
+                checkpoint_file = os.path.join(trainParams.log_path_dir, 'model.ckpt')
+                saver.save(sess, checkpoint_file, global_step=gstep)
 
         finally:
             print('finishing...')

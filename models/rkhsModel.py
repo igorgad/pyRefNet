@@ -12,9 +12,9 @@ nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
 OR = 4      # Frame Overlap Ratio
 batch_size = 8
-lr = 0.0001
+lr = 0.001
 
-trefClass = np.array(range(2 * (1 + (88200//1152)))).astype(np.int32)
+trefClass = np.array(range(-80,80)).astype(np.int32)
 sigma = 10
 
 kp = 0.7
@@ -47,14 +47,6 @@ def inference(ins, keep_prob):
         wc1y = tf.Variable(medinit, trainable=medconvtrain)
         bc1x = tf.Variable(0.0, trainable=medconvtrain)
         bc1y = tf.Variable(0.0, trainable=medconvtrain)
-
-        # wc = [wc1x, wc1y]
-        # bc = [bc1x, bc1y]
-        #
-        # def cloop(i):
-        #     return tf.nn.conv2d(tf.expand_dims(tf.gather(ins, i, axis=3), axis=3), wc[i], strides=[1, 1, 1, 1], padding='SAME') + bc[i]
-        #
-        # conv1 = tf.transpose(tf.map_fn(cloop, tf.range(2), dtype=tf.float32), [1, 2, 0, 3])
 
         [insx, insy] = tf.unstack(ins, axis=3)
         insx = tf.expand_dims(insx, axis=3)
