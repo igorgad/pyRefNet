@@ -64,7 +64,7 @@ def inference(ins, keep_prob):
 
     # Normalized Cross Correntropy Layer
     with tf.name_scope('rkhs'):
-        Sigma = tf.Variable(np.float32(sigma), trainable=medconvtrain)
+        Sigma = tf.Variable(np.float32(sigma), trainable=False)
 
         hs = ITL.gspace_layer(conv1, Sigma)
 

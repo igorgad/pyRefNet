@@ -28,6 +28,24 @@ def parse_features_and_decode(tf_example):
     return parsed_features
 
 
+def turn_into_autotest(parsed_features):
+    ref = parsed_features['comb/label'] - 78
+
+    def delay_positive():
+        parsed_features['comb/sig2'] = tf.concat([tf.zeros(tf.abs(ref)), parsed_features['comb/sig1'][:-tf.abs(ref)]], axis=0)
+        parsed_features['comb/lab2'] = tf.concat([tf.zeros(tf.abs(ref)), parsed_features['comb/lab1'][:-tf.abs(ref)]], axis=0)
+        return parsed_features
+
+    def delay_negative():
+        parsed_features['comb/sig2'] = tf.concat([parsed_features['comb/sig1'][tf.abs(ref):], tf.zeros(tf.abs(ref))], axis=0)
+        parsed_features['comb/lab2'] = tf.concat([parsed_features['comb/lab1'][tf.abs(ref):], tf.zeros(tf.abs(ref))], axis=0)
+        return parsed_features
+
+    parsed_features = tf.cond(tf.greater_equal(ref, 0), delay_positive, delay_negative)
+
+    return parsed_features
+
+
 def filter_split_dataset_from_ids(parsed_features, ids):
     id = parsed_features['comb/id']
     return tf.reduce_any(tf.equal(id,ids))
@@ -155,6 +173,7 @@ def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
 
             tfdataset = tf.data.TFRecordDataset(datasetfile)
             tfdataset = tfdataset.map(parse_features_and_decode, num_parallel_calls=4)
+            # tfdataset = tfdataset.map(turn_into_autotest, num_parallel_calls=4) #USE FOR DEBUG ONLY
 
             # tfdataset = tfdataset.filter(lambda feat: filter_perclass(feat, classes))
             tfdataset = tfdataset.filter(filter_combinations_with_voice)

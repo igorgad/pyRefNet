@@ -179,8 +179,8 @@ def start_training(trainParams):
                 train_writer.add_run_metadata(run_metadata, 'stats_epoch %d' % gstep)
                 train_writer.flush()
 
-                print('%s_run_%d: TRAIN step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
-                      (trainParams.run_name, trainParams.n + 1, gstep, 0.0, loss_value, top1_value, top5_value))
+                print('%s: TRAIN step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
+                      (trainParams.run_name, gstep, 0.0, loss_value, top1_value, top5_value))
 
                 while True:
                     try:
@@ -201,8 +201,8 @@ def start_training(trainParams):
 
                         duration = time.time() - start_time
 
-                        print ('%s_run_%d: TRAIN step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
-                               (trainParams.run_name, trainParams.n + 1, gstep, model.batch_size/duration, loss_value, top1_value, top5_value) )
+                        print ('%s: TRAIN step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
+                               (trainParams.run_name, gstep, model.batch_size/duration, loss_value, top1_value, top5_value) )
 
                     except tf.errors.OutOfRangeError:
                         break
@@ -218,8 +218,8 @@ def start_training(trainParams):
                                                                                       feed_dict={dataset_handle: testing_handle, queue_selector: 1, keepp_pl: 1})
 
                         duration = time.time() - start_time
-                        print('%s_run_%d: TEST step %d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
-                              (trainParams.run_name, trainParams.n + 1, gstep, model.batch_size / duration, loss_value, top1_value, top5_value))
+                        print('%s: TEST step %d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
+                              (trainParams.run_name, gstep, model.batch_size / duration, loss_value, top1_value, top5_value))
 
                     except tf.errors.OutOfRangeError:
                         break

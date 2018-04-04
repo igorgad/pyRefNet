@@ -29,8 +29,9 @@ parser.add_argument('--summary_interval', type=int, default=sum_interval, help='
 # Fill trainParams
 trainParams = parser.parse_args()
 
-trainParams.n = sum(1 for f in os.listdir(log_dir) if os.path.isdir(os.path.join(log_dir, f)))
-trainParams.log_path_dir = "{}{}_run_{}".format(log_dir, trainParams.run_name, trainParams.n+1)
+n = sum(1 for f in os.listdir(log_dir) if os.path.isdir(os.path.join(log_dir, f)))
+trainParams.run_name = "{}_run_{}".format(trainParams.run_name, n+1)
+trainParams.log_path_dir = log_dir + trainParams.run_name
 trainParams.hptext = {key:value for key, value in trainParams.__dict__.items() if not key.startswith('__') and not callable(key)}
 
 np.random.seed(0)

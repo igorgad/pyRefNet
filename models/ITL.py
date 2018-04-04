@@ -16,7 +16,7 @@ def gram(x,y):
         def rloop(i):
             return gram_op(tf.gather(x, tf.range(tf.shape(x)[2]), axis=2), tf.expand_dims(tf.gather(y, i, axis=2), dim=2))
 
-        return tf.transpose(tf.reduce_mean(tf.map_fn(rloop, tf.range(tf.shape(y)[2]), dtype=tf.float32), axis=2), [1, 0, 2])
+        return tf.transpose(tf.reduce_mean(tf.map_fn(rloop, tf.range(tf.shape(y)[2]), dtype=tf.float32, parallel_iterations=8), axis=2), [1, 0, 2])
 
 
 def gram_layer(ins):
@@ -35,7 +35,7 @@ def gspace(x,y,s):
         def rloop(i):
             return gkernel(tf.gather(x, tf.range(tf.shape(x)[2]), axis=2), tf.expand_dims(tf.gather(y, i, axis=2), dim=2), s)
 
-        return tf.transpose(tf.reduce_mean(tf.map_fn(rloop, tf.range(tf.shape(y)[2]), dtype=tf.float32), axis=2), [1, 0, 2])
+        return tf.transpose(tf.reduce_mean(tf.map_fn(rloop, tf.range(tf.shape(y)[2]), dtype=tf.float32, parallel_iterations=8), axis=2), [1, 0, 2])
 
 
 def gspace_layer(ins,Sigma):
@@ -60,7 +60,7 @@ def ncc(x, y, marray, s):
 
             return tf.reduce_mean(gkernel(tf.gather(x, nx, axis=2), tf.gather(y, ny, axis=2), s), axis=2)
 
-        return tf.transpose(tf.map_fn(lambda m: nloop(m), marray, dtype=tf.float32), [1, 2, 0])
+        return tf.transpose(tf.map_fn(lambda m: nloop(m), marray, dtype=tf.float32, parallel_iterations=8), [1, 2, 0])
 
 
 def ncc_layer(ins,marray,Sigma):
