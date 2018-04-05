@@ -12,7 +12,7 @@ nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
 OR = 4      # Frame Overlap Ratio
 batch_size = 8
-lr = 0.001
+lr = 0.0001
 
 trefClass = np.array(range(-80,80)).astype(np.int32)
 sigma = 10
