@@ -94,8 +94,11 @@ def clean_from_activation_signal(parsed_features):
     sigfil1 = tf.reshape(tf.gather(sig1, tf.where(tf.logical_and(lab1 >= 0.5, lab2 >= 0.5)), axis=0), [-1])
     sigfil2 = tf.reshape(tf.gather(sig2, tf.where(tf.logical_and(lab1 >= 0.5, lab2 >= 0.5)), axis=0), [-1])
 
-    parsed_features['comb/sig1'] = sigfil1
-    parsed_features['comb/sig2'] = sigfil2
+    m1, v1 = tf.nn.moments(sigfil1, axes=[0])
+    m2, v2 = tf.nn.moments(sigfil2, axes=[0])
+
+    parsed_features['comb/sig1'] = (sigfil1 - m1) / tf.sqrt(v1)
+    parsed_features['comb/sig2'] = (sigfil2 - m2) / tf.sqrt(v2)
 
     return parsed_features
 
@@ -110,7 +113,7 @@ def replace_label_of_unselected_class(parsed_features, selected_class):
 
 def normalize_blocks(sigmat):
     mean, var = tf.nn.moments(sigmat, axes=[0])
-    signorm = sigmat - mean / tf.sqrt(var)
+    signorm = (sigmat - mean) / tf.sqrt(var)
     return signorm
 
 
@@ -129,7 +132,7 @@ def prepare_input_with_random_sampling(parsed_features, N, nwin, OR):
     sigmat1 = normalize_blocks(sigmat1)
     sigmat2 = normalize_blocks(sigmat2)
 
-    parsed_features['example/input'] = tf.stack((sigmat1, sigmat2), axis=2)
+    parsed_features['example/input'] = tf.stack((sigmat2, sigmat1), axis=2)
 
     return parsed_features
 
@@ -144,7 +147,7 @@ def prepare_input_with_all_windows(parsed_features, N, OR):
     sigmat1 = normalize_blocks(sigmat1)
     sigmat2 = normalize_blocks(sigmat2)
 
-    parsed_features['example/input'] = tf.stack((sigmat1, sigmat2), axis=2)
+    parsed_features['example/input'] = tf.stack((sigmat2, sigmat1), axis=2)
 
     return parsed_features
 

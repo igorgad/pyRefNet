@@ -5,6 +5,7 @@ import tensorflow as tf
 import numpy as np
 import yaml
 import os
+from subprocess import call
 import scipy.io.wavfile as wf
 
 maxSamplesDelay = 88200
@@ -14,10 +15,10 @@ nexpan = 50
 blocksize = 1152
 maxBlockDelay = 1 + maxSamplesDelay // blocksize
 #### PATHs
-active_dir = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/Annotations/Instrument_Activations/ACTIVATION_CONF/'
-metadata_dir = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/METADATA/'
-audio_dir = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/Audio/'
-tfrecordfile = '/media/pepeu/582D8A263EED4072/DATASETS/MedleyDB/bitrate_medleydb_blocksize' + str(blocksize) + '.tfrecord'
+active_dir = '/home/pepeu/workspace/DOC/Dataset/ACTIVATION_CONF/'
+metadata_dir = '/home/pepeu/workspace/DOC/Dataset/METADATA/'
+audio_dir = '/home/pepeu/workspace/DOC/Dataset/Audio/'
+tfrecordfile = '/home/pepeu/workspace/DOC/Dataset/stereo_bitrate_medleydb_blocksize' + str(blocksize) + '.tfrecord'
 #### Dataset type classification
 rythm = ['gong', 'auxiliary percussion', 'bass drum', 'bongo', 'chimes','claps', 'cymbal', 'drum machine', 'darbuka', 'glockenspiel','doumbek', 'drum set', 'kick drum', 'shaker', 'snare drum', 'tabla', 'tambourine', 'timpani', 'toms', 'vibraphone']
 eletronic = ['Main System', 'fx/processed sound', 'sampler','scratches' ]
@@ -26,7 +27,6 @@ brass = ['piccolo', 'soprano saxophone', 'horn section', 'alto saxophone', 'bamb
 voice = ['female singer', 'male rapper','male singer','male speaker', 'vocalists']
 melody = ['electric piano', 'accordion','piano', 'synthesizer','tack piano','harmonica', 'melodica']
 tps = {'rythm': rythm, 'electronic': eletronic, 'strings': strings, 'brass': brass, 'voice': voice, 'melody': melody}
-
 
 
 def int64_feature(value):
@@ -50,7 +50,7 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
         except ValueError:
             print('################# AUDIO READ ERROR on file ' + audiofile + ' ###################')
             print('################# recovering... ###################')
-            os.system('ffmpeg -nostats -loglevel quiet -y -i ' + audiofile + ' ' + path + '/recovered_' + filename)
+            call(('ffmpeg -nostats -loglevel quiet -y -i ' + audiofile + ' ' + path + '/recovered_' + filename).split())
 
             try:
                 rate, samples = wf.read(path + '/recovered_' + filename)
@@ -58,15 +58,15 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
                 print('################# not recovered ###################')
                 return -1, -1
 
-        samples = np.sum(samples, axis=1).astype(np.int16) # Convert stereo to mono
-        samplesdly = np.concatenate((np.zeros(delay, np.int16), samples[:-delay]))
+        # samples = np.sum(samples, axis=1).astype(np.int16) # Convert stereo to mono
+        samplesdly = np.concatenate((np.zeros((delay,2), np.int16), samples), axis=0)
 
         # save delayed audio in wav format
         wf.write(path + '/' + dlyfilename + '.wav', rate, samplesdly)
 
         # Generate analyzer file with system flac
-        os.system('flac --totally-silent -f -b ' + str(blocksize) + ' ' + path + '/' + dlyfilename + '.wav')
-        os.system('flac --totally-silent -a ' + path + '/' + dlyfilename + '.flac')
+        call(('flac --totally-silent -f -b ' + str(blocksize) + ' ' + path + '/' + dlyfilename + '.wav').split())
+        call(('flac --totally-silent -a ' + path + '/' + dlyfilename + '.flac').split())
 
         try:
             tmpf = open(path + '/' + dlyfilename + '.ana', 'r')
@@ -84,14 +84,14 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
         idx = np.nonzero(kval[:,0] == 'bits')
         bitratesignal = np.squeeze(kval[idx, 1])
 
-        bitratesignal = np.int32(bitratesignal)[1:]
+        bitratesignal = np.int32(bitratesignal)[maxBlockDelay:]
         bitratesignal = np.float32((bitratesignal - np.mean(bitratesignal)) / np.std(bitratesignal)) ## standardization
 
         bitratesignal.tofile(path + '/' + dlyfilename + '.bin')
 
-        os.system('rm -f ' + path + '/' + dlyfilename + '.wav')
-        os.system('rm -f ' + path + '/' + dlyfilename + '.flac')
-        os.system('rm -f ' + path + '/' + dlyfilename + '.ana')
+        call(('rm -f ' + path + '/' + dlyfilename + '.wav').split())
+        call(('rm -f ' + path + '/' + dlyfilename + '.flac').split())
+        call(('rm -f ' + path + '/' + dlyfilename + '.ana').split())
 
 
     bitratesignal = np.fromfile(path + '/' + dlyfilename + '.bin')
@@ -99,19 +99,20 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
     return bitratesignal, delay // blocksize
 
 
-def resample_labvecs(reftime, labvec1, labvec2):
+def resample_labvecs(reftime, labvec1, labvec2, dlys1, dlys2):
     dtime = np.diff(reftime)
 
-    labt1 = np.hstack([np.ones(int(dtime[i] / (1 / 44100)), np.float32) * labvec1[i] for i in range(dtime.size)])
-    labt2 = np.hstack([np.ones(int(dtime[i] / (1 / 44100)), np.float32) * labvec2[i] for i in range(dtime.size)])
+    labt1 = np.concatenate((np.zeros(dlys1), np.hstack([np.ones(int(dtime[i] / (1 / 44100)), np.float32) * labvec1[i] for i in range(dtime.size)])), axis=0)
+    labt2 = np.concatenate((np.zeros(dlys2), np.hstack([np.ones(int(dtime[i] / (1 / 44100)), np.float32) * labvec2[i] for i in range(dtime.size)])), axis=0)
 
     labmat1 = np.resize(labt1, [np.ceil(labt1.size/blocksize).astype(np.int32), blocksize])
     labmat2 = np.resize(labt2, [np.ceil(labt2.size/blocksize).astype(np.int32), blocksize])
 
-    labmean1 = np.mean(labmat1, axis=1)
-    labmean2 = np.mean(labmat2, axis=1)
+    labmean1 = np.mean(labmat1, axis=1)[maxBlockDelay:]
+    labmean2 = np.mean(labmat2, axis=1)[maxBlockDelay:]
 
     return labmean1, labmean2
+
 
 def get_class (inst1, inst2, type1, type2):
 
@@ -176,12 +177,11 @@ def combFunc(params):
         print('################################# skipping comb' + st1['instrument'] + ' x ' + st2['instrument'])
         return -1
 
-    labm1, labm2 = resample_labvecs(reftime, labvec1, labvec2)
+    labm1, labm2 = resample_labvecs(reftime, labvec1, labvec2, delay_samples1, delay_samples2)
 
     tf_example = create_tf_example(st1, st2, id, cclass, sig1, sig2, dly1, dly2, labm1, labm2)
 
     return tf_example
-
 
 
 np.random.seed(0)
