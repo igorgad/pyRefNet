@@ -10,10 +10,10 @@ importlib.reload(pyRef_train)
 # Default Parameters of Argparse
 num_steps   = 100000
 selected_class    = [3, 4, 5]
-dataset_file  = '/home/pepeu/workspace/DOC/Dataset/bitrate_medleydb_blocksize1152.tfrecord'
+dataset_file  = '/home/pepeu/workspace/DOC/Dataset/stereo_bitrate_medleydb_blocksize1152.tfrecord'
 log_dir     = '/home/pepeu/DATA_DRIVE/DATASETS/MedleyDB/tensorlogs/'
 
-run_name      = "sr-datasetapi-{}_N{}_NW{}".format(pyRef_train.model.name, pyRef_train.model.N, pyRef_train.model.nwin)
+run_name      = "stereovbr-{}_N{}_NW{}".format(pyRef_train.model.name, pyRef_train.model.N, pyRef_train.model.nwin)
 sum_interval = 800
 
 # Parse arguments

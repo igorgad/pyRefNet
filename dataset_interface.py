@@ -46,6 +46,12 @@ def turn_into_autotest(parsed_features):
     return parsed_features
 
 
+def use_activation_signal_instead_of_bit_rate_signal(parsed_features):
+    parsed_features['comb/sig1'] = parsed_features['comb/lab1']
+    parsed_features['comb/sig2'] = parsed_features['comb/lab2']
+    return parsed_features
+
+
 def filter_split_dataset_from_ids(parsed_features, ids):
     id = parsed_features['comb/id']
     return tf.reduce_any(tf.equal(id,ids))
@@ -79,20 +85,20 @@ def filter_perwindow(parsed_features, N, nwin, OR):
     return tf.reduce_all([tf.less_equal(nwin,nw1), tf.less_equal(nwin,nw2)])
 
 
-def clean_from_activation_signal(parsed_features):
+def clean_from_activation_signal(parsed_features, activation_treshold):
     sig1 = parsed_features['comb/sig1']
     sig2 = parsed_features['comb/sig2']
     lab1 = parsed_features['comb/lab1']
     lab2 = parsed_features['comb/lab2']
 
-    sigsize = tf.minimum(tf.shape(sig1)[0], tf.shape(sig2)[0])
+    sigsize = tf.reduce_min([tf.shape(sig1)[0], tf.shape(sig2)[0], tf.shape(lab1)[0], tf.shape(lab2)[0]])
     sig1 = sig1[:sigsize]
     sig2 = sig2[:sigsize]
     lab1 = lab1[:sigsize]
     lab2 = lab2[:sigsize]
 
-    sigfil1 = tf.reshape(tf.gather(sig1, tf.where(tf.logical_and(lab1 >= 0.5, lab2 >= 0.5)), axis=0), [-1])
-    sigfil2 = tf.reshape(tf.gather(sig2, tf.where(tf.logical_and(lab1 >= 0.5, lab2 >= 0.5)), axis=0), [-1])
+    sigfil1 = tf.reshape(tf.gather(sig1, tf.where(tf.logical_and(lab1 >= activation_treshold, lab2 >= activation_treshold)), axis=0), [-1])
+    sigfil2 = tf.reshape(tf.gather(sig2, tf.where(tf.logical_and(lab1 >= activation_treshold, lab2 >= activation_treshold)), axis=0), [-1])
 
     m1, v1 = tf.nn.moments(sigfil1, axes=[0])
     m2, v2 = tf.nn.moments(sigfil2, axes=[0])
@@ -177,11 +183,12 @@ def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
             tfdataset = tf.data.TFRecordDataset(datasetfile)
             tfdataset = tfdataset.map(parse_features_and_decode, num_parallel_calls=4)
             # tfdataset = tfdataset.map(turn_into_autotest, num_parallel_calls=4) #USE FOR DEBUG ONLY
+            # tfdataset = tfdataset.map(use_activation_signal_instead_of_bit_rate_signal) #USE FOR DEBUG ONLY
 
             # tfdataset = tfdataset.filter(lambda feat: filter_perclass(feat, classes))
             tfdataset = tfdataset.filter(filter_combinations_with_voice)
             # tfdataset = tfdataset.map(lambda feat: replace_label_of_unselected_class(feat, classes))
-            tfdataset = tfdataset.map(clean_from_activation_signal, num_parallel_calls=4)
+            tfdataset = tfdataset.map(lambda feat: clean_from_activation_signal(feat, 0.5), num_parallel_calls=4)
             tfdataset = tfdataset.filter(lambda feat: filter_sigsize_leq_N(feat, N))
             # tfdataset = tfdataset.filter(lambda feat: filter_perwindow(feat, N, nwin, OR))
             tfdataset = tfdataset.map(lambda feat: prepare_input_with_random_sampling(feat, N, nwin, OR), num_parallel_calls=4)

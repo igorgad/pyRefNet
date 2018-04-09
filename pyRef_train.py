@@ -234,7 +234,7 @@ def start_training(trainParams):
                 checkpoint_file = os.path.join(trainParams.log_path_dir, 'model.ckpt')
                 saver.save(sess, checkpoint_file, global_step=gstep)
 
-        finally:
-            print('finishing...')
+        except Exception as e:
+            print('finishing...' + str(e))
             sess.close()
             return 0

@@ -15,9 +15,11 @@ nexpan = 50
 blocksize = 1152
 maxBlockDelay = 1 + maxSamplesDelay // blocksize
 #### PATHs
-active_dir = '/home/pepeu/workspace/DOC/Dataset/ACTIVATION_CONF/'
-metadata_dir = '/home/pepeu/workspace/DOC/Dataset/METADATA/'
-audio_dir = '/home/pepeu/workspace/DOC/Dataset/Audio/'
+dataroot = '/home/pepeu/workspace/DOC/Dataset/'
+# dataroot = '/home/pepeu/DATA_DRIVE/DATASETS/MedleyDB'
+active_dir = dataroot + '/ACTIVATION_CONF'
+metadata_dir = dataroot + '/METADATA/'
+audio_dir = dataroot + '/Audio/'
 tfrecordfile = '/home/pepeu/workspace/DOC/Dataset/stereo_bitrate_medleydb_blocksize' + str(blocksize) + '.tfrecord'
 #### Dataset type classification
 rythm = ['gong', 'auxiliary percussion', 'bass drum', 'bongo', 'chimes','claps', 'cymbal', 'drum machine', 'darbuka', 'glockenspiel','doumbek', 'drum set', 'kick drum', 'shaker', 'snare drum', 'tabla', 'tambourine', 'timpani', 'toms', 'vibraphone']
@@ -93,8 +95,9 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
         call(('rm -f ' + path + '/' + dlyfilename + '.flac').split())
         call(('rm -f ' + path + '/' + dlyfilename + '.ana').split())
 
-
-    bitratesignal = np.fromfile(path + '/' + dlyfilename + '.bin')
+    else:
+        # print ('recovering from file ' + dlyfilename + '.bin')
+        bitratesignal = np.fromfile(path + '/' + dlyfilename + '.bin')
 
     return bitratesignal, delay // blocksize
 
@@ -102,8 +105,8 @@ def insert_delay_and_gather_bitratesignal (audiofile, delay, blocksize):
 def resample_labvecs(reftime, labvec1, labvec2, dlys1, dlys2):
     dtime = np.diff(reftime)
 
-    labt1 = np.concatenate((np.zeros(dlys1), np.hstack([np.ones(int(dtime[i] / (1 / 44100)), np.float32) * labvec1[i] for i in range(dtime.size)])), axis=0)
-    labt2 = np.concatenate((np.zeros(dlys2), np.hstack([np.ones(int(dtime[i] / (1 / 44100)), np.float32) * labvec2[i] for i in range(dtime.size)])), axis=0)
+    labt1 = np.concatenate((np.zeros(dlys1, np.float32), np.hstack([np.ones(int(dtime[i] / (1 / 44100)), np.float32) * labvec1[i] for i in range(dtime.size)])), axis=0)
+    labt2 = np.concatenate((np.zeros(dlys2, np.float32), np.hstack([np.ones(int(dtime[i] / (1 / 44100)), np.float32) * labvec2[i] for i in range(dtime.size)])), axis=0)
 
     labmat1 = np.resize(labt1, [np.ceil(labt1.size/blocksize).astype(np.int32), blocksize])
     labmat2 = np.resize(labt2, [np.ceil(labt2.size/blocksize).astype(np.int32), blocksize])
