@@ -11,25 +11,25 @@ N = 256     # VBR signal length
 nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
 OR = 4      # Frame Overlap Ratio
-batch_size = 8
+batch_size = 32
 lr = 0.0001
 
 trefClass = np.array(range(-80,80)).astype(np.int32)
 sigma = 10
 
-kp = 0.7
+kp = 1
 
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
 
-shapeconv2 = [9, 9, 3, 48]
-shapeconv3 = [9, 9, 48, 24]
-shapeconv4 = [5, 5, 24, 8]
+shapeconv2 = [5, 5, 1, 16]
+shapeconv3 = [5, 5, 16, 32]
+shapeconv4 = [3, 3, 32, 64]
 
-fc1_nhidden = trefClass.size * 2
+fc1_nhidden = 1024
 nclass = len(trefClass)
 
-medconvtrain = True
+medconvtrain = False
 
 hptext = {'model_name': name, 'N': N, 'nwin': nwin, 'lr': lr, 'kp': kp, 'medconvtrain': medconvtrain,
           'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize,
@@ -38,6 +38,11 @@ hptext = {'model_name': name, 'N': N, 'nwin': nwin, 'lr': lr, 'kp': kp, 'medconv
 
 ##########################
 
+def activation(inp):
+    return tf.nn.leaky_relu(inp)
+
+xavier_init =  tf.contrib.layers.xavier_initializer(uniform=True)
+xavier_init_conv2d =  tf.contrib.layers.xavier_initializer_conv2d(uniform=True)
 
 def inference(ins, keep_prob):
 
@@ -71,44 +76,50 @@ def inference(ins, keep_prob):
         tf.summary.image('rkhs_color', hs)
         tf.summary.scalar('sigma', Sigma)
 
-        hxx, hyy, hxy = tf.unstack(hs, axis=3)
+        # hxx, hyy, hxy = tf.unstack(hs, axis=3)
         # tf.summary.image('rkhs_xx', tf.expand_dims(hxx,axis=3))
         # tf.summary.image('rkhs_yy', tf.expand_dims(hyy,axis=3))
-        tf.summary.image('rkhs_xy', tf.expand_dims(hxy,axis=3))
+        # tf.summary.image('rkhs_xy', tf.expand_dims(hxy,axis=3))
 
     # Conv 2 Layer
     with tf.name_scope('conv_2'):
-        wc2 = tf.Variable( tf.truncated_normal(shape=shapeconv2, stddev=0.1) )
+        wc2 = tf.Variable(xavier_init_conv2d(shapeconv2))
         bc2 =  tf.Variable(np.zeros(shapeconv2[3]).astype(np.float32))
 
-        conv2 = tf.nn.relu( tf.nn.conv2d(hs, wc2, strides=[1,1,1,1], padding='SAME') + bc2 )
+        conv2 = activation(tf.nn.conv2d(hs, wc2, strides=[1,1,1,1], padding='SAME') + bc2 )
         pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
         # drop2 = tf.nn.dropout(pool2, keep_prob)
 
+        p2feat = tf.unstack(pool2, axis=3)
+        tf.summary.image('conv2_feat', tf.expand_dims(p2feat[0], axis=3))
         tf.summary.histogram('wc2-gram', wc2)
         tf.summary.histogram('bc2-gram', bc2)
 
     # Conv 3 Layer
     with tf.name_scope('conv_3'):
-        wc3 = tf.Variable( tf.truncated_normal(shape=shapeconv3, stddev=0.1) )
+        wc3 = tf.Variable(xavier_init_conv2d(shapeconv3))
         bc3 =  tf.Variable(np.zeros(shapeconv3[3]).astype(np.float32))
 
-        conv3 = tf.nn.relu( tf.nn.conv2d(pool2, wc3, strides=[1,1,1,1], padding='SAME') + bc3 )
+        conv3 = activation( tf.nn.conv2d(pool2, wc3, strides=[1,1,1,1], padding='SAME') + bc3 )
         pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
         # drop3 = tf.nn.dropout(pool3, keep_prob)
 
+        p3feat = tf.unstack(pool3, axis=3)
+        tf.summary.image('conv3_feat', tf.expand_dims(p3feat[0], axis=3))
         tf.summary.histogram('wc3-gram', wc3)
         tf.summary.histogram('bc3-gram', bc3)
 
     # Conv 4 Layer
     with tf.name_scope('conv_4'):
-        wc4 = tf.Variable( tf.truncated_normal(shape=shapeconv4, stddev=0.1) )
+        wc4 = tf.Variable(xavier_init_conv2d(shapeconv4))
         bc4 =  tf.Variable(np.zeros(shapeconv4[3]).astype(np.float32))
 
-        conv4 = tf.nn.relu( tf.nn.conv2d(pool3, wc4, strides=[1,1,1,1], padding='SAME') + bc4 )
+        conv4 = activation( tf.nn.conv2d(pool3, wc4, strides=[1,1,1,1], padding='SAME') + bc4 )
         pool4 = tf.nn.max_pool(conv4, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
         # drop4 = tf.nn.dropout(pool4, keep_prob)
 
+        p4feat = tf.unstack(pool4, axis=3)
+        tf.summary.image('conv4_feat', tf.expand_dims(p4feat[0], axis=3))
         tf.summary.histogram('wc4-gram', wc4)
         tf.summary.histogram('bc4-gram', bc4)
 
@@ -118,10 +129,10 @@ def inference(ins, keep_prob):
 
     # FC 1 Layer
     with tf.name_scope('fc_1'):
-        wfc1 = tf.Variable( tf.truncated_normal(shape=[flat4.get_shape().as_list()[-1], fc1_nhidden], stddev=0.1) )
+        wfc1 = tf.Variable(xavier_init([flat4.get_shape().as_list()[-1], fc1_nhidden]))
         bfc1 =  tf.Variable(np.zeros(fc1_nhidden).astype(np.float32))
 
-        fc1 = tf.nn.relu(tf.matmul(flat4, wfc1) + bfc1)
+        fc1 = activation(tf.matmul(flat4, wfc1) + bfc1)
         dropfc1 = tf.nn.dropout(fc1, keep_prob)
 
         tf.summary.histogram('wfc1-gram', wfc1)
@@ -129,7 +140,7 @@ def inference(ins, keep_prob):
 
     # Logits Layer
     with tf.name_scope('logits'):
-        wl = tf.Variable(tf.truncated_normal(shape=[fc1_nhidden,nclass], stddev=0.1))
+        wl = tf.Variable(xavier_init([fc1_nhidden,nclass]))
         bl = tf.Variable(np.zeros(nclass).astype(np.float32))
 
         logits = tf.matmul(dropfc1, wl) + bl

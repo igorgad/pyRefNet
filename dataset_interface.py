@@ -4,6 +4,7 @@ import tensorflow as tf
 features = {
         'comb/id': tf.FixedLenFeature([], tf.int64),
         'comb/class': tf.FixedLenFeature([], tf.int64),
+        'comb/genre': tf.FixedLenFeature([], tf.string),
         'comb/inst1': tf.FixedLenFeature([], tf.string),
         'comb/inst2': tf.FixedLenFeature([], tf.string),
         'comb/type1': tf.FixedLenFeature([], tf.string),
@@ -25,11 +26,16 @@ def parse_features_and_decode(tf_example):
     parsed_features['comb/lab1'] = tf.reshape(tf.decode_raw(parsed_features['comb/lab1'], tf.float32), [-1])
     parsed_features['comb/lab2'] = tf.reshape(tf.decode_raw(parsed_features['comb/lab2'], tf.float32), [-1])
 
+    parsed_features['comb/label'] = tf.cast(parsed_features['comb/label'], tf.int32)
+    parsed_features['comb/ref']   = tf.cast(parsed_features['comb/ref'], tf.int32)
+    parsed_features['comb/class'] = tf.cast(parsed_features['comb/class'], tf.int32)
+    parsed_features['comb/id']    = tf.cast(parsed_features['comb/id'], tf.int32)
+
     return parsed_features
 
 
 def turn_into_autotest(parsed_features):
-    ref = parsed_features['comb/label'] - 78
+    ref = parsed_features['comb/label'] - (88200//1152) + 1
 
     def delay_positive():
         parsed_features['comb/sig2'] = tf.concat([tf.zeros(tf.abs(ref)), parsed_features['comb/sig1'][:-tf.abs(ref)]], axis=0)
@@ -138,6 +144,9 @@ def prepare_input_with_random_sampling(parsed_features, N, nwin, OR):
     sigmat1 = normalize_blocks(sigmat1)
     sigmat2 = normalize_blocks(sigmat2)
 
+    sigmat1 = tf.where(tf.is_nan(sigmat1), tf.zeros_like(sigmat1), sigmat1)
+    sigmat2 = tf.where(tf.is_nan(sigmat2), tf.zeros_like(sigmat2), sigmat2)
+
     parsed_features['example/input'] = tf.stack((sigmat2, sigmat1), axis=2)
 
     return parsed_features
@@ -163,8 +172,9 @@ def parse_example(parsed_features):
     ins = parsed_features['example/input']
     type1 = parsed_features['comb/type1']
     type2 = parsed_features['comb/type2']
+    genre = parsed_features['comb/genre']
 
-    return ins, label, tf.string_join([type1, ' x ', type2])
+    return ins, label, tf.string_join([type1, ' x ', type2]), genre
 
 
 def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
@@ -188,7 +198,7 @@ def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
             # tfdataset = tfdataset.filter(lambda feat: filter_perclass(feat, classes))
             tfdataset = tfdataset.filter(filter_combinations_with_voice)
             # tfdataset = tfdataset.map(lambda feat: replace_label_of_unselected_class(feat, classes))
-            tfdataset = tfdataset.map(lambda feat: clean_from_activation_signal(feat, 0.5), num_parallel_calls=4)
+            tfdataset = tfdataset.map(lambda feat: clean_from_activation_signal(feat, 0.8), num_parallel_calls=4)
             tfdataset = tfdataset.filter(lambda feat: filter_sigsize_leq_N(feat, N))
             # tfdataset = tfdataset.filter(lambda feat: filter_perwindow(feat, N, nwin, OR))
             tfdataset = tfdataset.map(lambda feat: prepare_input_with_random_sampling(feat, N, nwin, OR), num_parallel_calls=4)

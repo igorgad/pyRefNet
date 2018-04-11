@@ -41,12 +41,14 @@ def gspace(x,y,s):
 def gspace_layer(ins,Sigma):
     [x, y] = tf.unstack(ins, axis=3)
 
-    gsr = [tf.image.per_image_standardization(gspace(x, x, Sigma)), tf.image.per_image_standardization(gspace(y, y, Sigma)),
-           tf.image.per_image_standardization(gspace(x, y, Sigma))]
+    # gsr = [tf.image.per_image_standardization(gspace(x, x, Sigma)), tf.image.per_image_standardization(gspace(y, y, Sigma)),
+    #        tf.image.per_image_standardization(gspace(x, y, Sigma))]
+    # gsr = tf.stack(gsr, axis=3)
 
-    gsr = tf.stack(gsr, axis=3)
+    gsr = tf.image.per_image_standardization(gspace(x, y, Sigma))
+    gsr = tf.expand_dims(gsr, axis=3)
 
-    gsr.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 3])  # Fix lost dimensions
+    gsr.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 1])  # Fix lost dimensions
     return gsr
 
 

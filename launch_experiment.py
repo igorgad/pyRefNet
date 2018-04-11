@@ -10,11 +10,11 @@ importlib.reload(pyRef_train)
 # Default Parameters of Argparse
 num_steps   = 100000
 selected_class    = [3, 4, 5]
-dataset_file  = '/home/pepeu/workspace/DOC/Dataset/stereo_bitrate_medleydb_blocksize1152.tfrecord'
+dataset_file  = '/home/pepeu/workspace/DOC/Dataset/stereo_wgenre_bitrate_medleydb_blocksize1152.tfrecord'
 log_dir     = '/home/pepeu/DATA_DRIVE/DATASETS/MedleyDB/tensorlogs/'
 
-run_name      = "stereovbr-{}_N{}_NW{}".format(pyRef_train.model.name, pyRef_train.model.N, pyRef_train.model.nwin)
-sum_interval = 800
+run_name      = "stereovbr-wgenre-{}_N{}_NW{}".format(pyRef_train.model.name, pyRef_train.model.N, pyRef_train.model.nwin)
+sum_interval = 200
 
 # Parse arguments
 parser = argparse.ArgumentParser(description='Launch training session of pyrefnet.')
@@ -25,6 +25,7 @@ parser.add_argument('--dataset_file', type=str, default=dataset_file, help='Data
 parser.add_argument('--log_dir', type=str, default=log_dir, help='The directory to store the experiments logs (default: %s)' % str(log_dir))
 parser.add_argument('--run_name', type=str, default=run_name, help='Specify a run name to use in log directory (default: %s)' % str(run_name))
 parser.add_argument('--summary_interval', type=int, default=sum_interval, help='Interval in steps to log results (default: %s)' % str(sum_interval))
+parser.add_argument('--debug', dest='debug', default=False, action='store_true')
 
 # Fill trainParams
 trainParams = parser.parse_args()

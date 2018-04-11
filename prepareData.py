@@ -20,7 +20,7 @@ dataroot = '/home/pepeu/workspace/DOC/Dataset/'
 active_dir = dataroot + '/ACTIVATION_CONF'
 metadata_dir = dataroot + '/METADATA/'
 audio_dir = dataroot + '/Audio/'
-tfrecordfile = '/home/pepeu/workspace/DOC/Dataset/stereo_bitrate_medleydb_blocksize' + str(blocksize) + '.tfrecord'
+tfrecordfile = '/home/pepeu/workspace/DOC/Dataset/stereo_wgenre_bitrate_medleydb_blocksize' + str(blocksize) + '.tfrecord'
 #### Dataset type classification
 rythm = ['gong', 'auxiliary percussion', 'bass drum', 'bongo', 'chimes','claps', 'cymbal', 'drum machine', 'darbuka', 'glockenspiel','doumbek', 'drum set', 'kick drum', 'shaker', 'snare drum', 'tabla', 'tambourine', 'timpani', 'toms', 'vibraphone']
 eletronic = ['Main System', 'fx/processed sound', 'sampler','scratches' ]
@@ -133,11 +133,12 @@ def get_class (inst1, inst2, type1, type2):
     return combClass
 
 
-def create_tf_example(st1, st2, id, cclass, sig1, sig2, dly1, dly2, labm1, labm2):
+def create_tf_example(yml, st1, st2, id, cclass, sig1, sig2, dly1, dly2, labm1, labm2):
 
     tf_example = tf.train.Example(features=tf.train.Features(feature={
         'comb/id'   : int64_feature(id),
         'comb/class': int64_feature(cclass),
+        'comb/genre': bytes_feature(os.fsencode(yml['genre'])),
         'comb/inst1': bytes_feature(os.fsencode(st1['instrument'])),
         'comb/inst2': bytes_feature(os.fsencode(st2['instrument'])),
         'comb/type1': bytes_feature(os.fsencode(st1['type'])),
@@ -182,7 +183,7 @@ def combFunc(params):
 
     labm1, labm2 = resample_labvecs(reftime, labvec1, labvec2, delay_samples1, delay_samples2)
 
-    tf_example = create_tf_example(st1, st2, id, cclass, sig1, sig2, dly1, dly2, labm1, labm2)
+    tf_example = create_tf_example(yml, st1, st2, id, cclass, sig1, sig2, dly1, dly2, labm1, labm2)
 
     return tf_example
 
