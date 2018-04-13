@@ -34,6 +34,17 @@ def parse_features_and_decode(tf_example):
     return parsed_features
 
 
+def split_train_test(parsed_features, train_rate):
+    parsed_features['comb/is_train'] = tf.gather(tf.random_uniform([1], maxval=100, dtype=tf.int32) < train_rate * 10, 0)
+    return parsed_features
+
+def grab_train_examples(parsed_features):
+    return parsed_features['comb/is_train']
+
+def grab_test_examples(parsed_features):
+    return ~parsed_features['comb/is_train']
+
+
 def turn_into_autotest(parsed_features):
     ref = parsed_features['comb/label'] - (88200//1152) + 1
 
@@ -203,8 +214,10 @@ def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
             # tfdataset = tfdataset.filter(lambda feat: filter_perwindow(feat, N, nwin, OR))
             tfdataset = tfdataset.map(lambda feat: prepare_input_with_random_sampling(feat, N, nwin, OR), num_parallel_calls=4)
             # tfdataset = tfdataset.map(lambda feat: prepare_input_with_all_windows(feat, N, OR))
-            train_dataset = tfdataset.filter(lambda feat: filter_split_dataset_from_ids(feat, train_ids)).map(parse_example)
-            test_dataset = tfdataset.filter(lambda feat: filter_split_dataset_from_ids(feat, eval_ids)).map(parse_example)
+
+            tfdataset = tfdataset.map(lambda feat: split_train_test(feat, trainParams.train_test_rate))
+            train_dataset = tfdataset.filter(grab_train_examples).map(parse_example)
+            test_dataset = tfdataset.filter(grab_test_examples).map(parse_example)
 
             train_dataset = train_dataset.shuffle(4096, reshuffle_each_iteration=True)
             test_dataset = test_dataset.shuffle(4096, reshuffle_each_iteration=True)

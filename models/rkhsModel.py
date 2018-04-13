@@ -17,14 +17,14 @@ lr = 0.0001
 trefClass = np.array(range(-80,80)).astype(np.int32)
 sigma = 10
 
-kp = 1
+kp = 0.7
 
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
 
-shapeconv2 = [5, 5, 1, 16]
-shapeconv3 = [5, 5, 16, 32]
-shapeconv4 = [3, 3, 32, 64]
+shapeconv2 = [9, 9, 1, 16]
+shapeconv3 = [9, 9, 16, 32]
+shapeconv4 = [5, 5, 32, 64]
 
 fc1_nhidden = 1024
 nclass = len(trefClass)
