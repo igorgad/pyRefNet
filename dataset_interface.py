@@ -35,7 +35,7 @@ def parse_features_and_decode(tf_example):
 
 
 def split_train_test(parsed_features, train_rate):
-    parsed_features['comb/is_train'] = tf.gather(tf.random_uniform([1], maxval=100, dtype=tf.int32) < tf.cast(train_rate * 10, tf.int32), 0)
+    parsed_features['comb/is_train'] = tf.gather(tf.random_uniform([1], maxval=100, dtype=tf.int32) < tf.cast(train_rate * 100, tf.int32), 0)
     return parsed_features
 
 def grab_train_examples(parsed_features):
