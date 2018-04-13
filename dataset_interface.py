@@ -213,15 +213,15 @@ def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
             tfdataset = tfdataset.map(lambda feat: prepare_input_with_random_sampling(feat, N, nwin, OR), num_parallel_calls=4)
             # tfdataset = tfdataset.map(lambda feat: prepare_input_with_all_windows(feat, N, OR))
 
-            tfdataset = tfdataset.map(lambda feat: split_train_test(feat, trainParams.train_test_rate))
+            tfdataset = tfdataset.map(lambda feat: split_train_test(feat, trainParams.train_test_rate), num_parallel_calls=4)
             train_dataset = tfdataset.filter(grab_train_examples).map(parse_example)
             test_dataset = tfdataset.filter(grab_test_examples).map(parse_example)
 
             train_dataset = train_dataset.shuffle(4096, reshuffle_each_iteration=True)
             test_dataset = test_dataset.shuffle(4096, reshuffle_each_iteration=True)
 
-            train_dataset = train_dataset.prefetch(buffer_size=4096)
-            test_dataset = test_dataset.prefetch(buffer_size=4096)
+            train_dataset = train_dataset.prefetch(buffer_size=batch_size)
+            test_dataset = test_dataset.prefetch(buffer_size=batch_size)
 
             train_dataset = train_dataset.batch(batch_size)
             test_dataset = test_dataset.batch(batch_size)
