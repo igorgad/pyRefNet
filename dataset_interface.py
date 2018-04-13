@@ -191,8 +191,6 @@ def parse_example(parsed_features):
 def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
     with tf.name_scope('dataset') as scope:
         with tf.device('/cpu:0'):
-            train_ids = trainParams.train_ids
-            eval_ids = trainParams.eval_ids
             datasetfile = trainParams.dataset_file
             # classes = trainParams.selected_class
 
