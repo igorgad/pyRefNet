@@ -28,6 +28,7 @@ parser.add_argument('--run_name', type=str, default=run_name, help='Specify a ru
 parser.add_argument('--summary_interval', type=int, default=sum_interval, help='Interval in steps to log results (default: %s)' % str(sum_interval))
 parser.add_argument('--train_test_rate', type=int, default=train_test_rate, help='Interval in steps to log results (default: %s)' % str(train_test_rate))
 parser.add_argument('--debug', dest='debug', default=False, action='store_true')
+parser.add_argument('--include_trace', dest='trace', default=False, action='store_true')
 
 # Fill trainParams
 trainParams = parser.parse_args()

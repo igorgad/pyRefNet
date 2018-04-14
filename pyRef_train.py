@@ -90,18 +90,19 @@ def start_training(trainParams):
                 sess.run(reset_op)
                 sess.run(train_iterator.initializer)
 
-                run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-                run_metadata = tf.RunMetadata()
+                if trainParams.trace:
+                    run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                    run_metadata = tf.RunMetadata()
 
-                _, loss_value, top1_value, top5_value, __, ___, gstep = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_comb_stats, update_genre_stats, global_step],
-                                                                     feed_dict={dataset_handle: training_handle, train_test_selector: 0, keepp_pl: model.kp}, options=run_options,
-                                                                     run_metadata=run_metadata)
+                    _, loss_value, top1_value, top5_value, __, ___, gstep = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_comb_stats, update_genre_stats, global_step],
+                                                                         feed_dict={dataset_handle: training_handle, train_test_selector: 0, keepp_pl: model.kp}, options=run_options,
+                                                                         run_metadata=run_metadata)
 
-                train_writer.add_run_metadata(run_metadata, 'stats_epoch %d' % gstep)
-                train_writer.flush()
+                    train_writer.add_run_metadata(run_metadata, 'stats_epoch %d' % gstep)
+                    train_writer.flush()
 
-                print('%s: TRAIN step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
-                      (trainParams.run_name, gstep, 0.0, loss_value, top1_value, top5_value))
+                    print('%s: TRAIN step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
+                          (trainParams.run_name, gstep, 0.0, loss_value, top1_value, top5_value))
 
                 while True:
                     try:

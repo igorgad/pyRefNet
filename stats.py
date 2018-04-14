@@ -99,6 +99,8 @@ def add_summaries(loss, eval1, eval5):
             avg_top1, avg_top1_op = tf.contrib.metrics.streaming_mean(eval1)
             avg_top5, avg_top5_op = tf.contrib.metrics.streaming_mean(eval5)
 
+            # vars = tf.contrib.framework.get_variables(scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
+            # reset_op = tf.variables_initializer(vars)
             reset_op = tf.local_variables_initializer()
 
             tf.summary.scalar('avg_loss', avg_loss)
