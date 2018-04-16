@@ -191,7 +191,7 @@ def parse_example(parsed_features):
     type2 = parsed_features['comb/type2']
     genre = parsed_features['comb/genre']
 
-    return {'ins': ins, 'typecomb': tf.string_join([type1, ' x ', type2]), 'genre': genre}, label
+    return ins, {'label': label, 'typecomb': tf.string_join([type1, ' x ', type2]), 'genre': genre}
 
 
 def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
