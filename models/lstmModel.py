@@ -15,32 +15,41 @@ lr = 0.0001
 
 trefClass = np.array(range(-80,80)).astype(np.int32)
 
-lstm_units = 256
-fc1_nhidden = trefClass.size * 2
+lstm_units_1 = 256
+lstm_units_2 = 512
+fc1_nhidden = 1024
 nclass = len(trefClass)
 
-hptext = {'model_name': name, 'lr': lr, 'batch_size': batch_size, 'lstm_units': lstm_units, 'fc1_hidden': fc1_nhidden}
+hptext = {'model_name': name, 'lr': lr, 'batch_size': batch_size, 'lstm_units_1': lstm_units_1, 'lstm_units_2': lstm_units_2, 'fc1_hidden': fc1_nhidden}
 ##########################
 
 
 def inference(ins, keep_prob): # (bs, nw, N, ns)
 
     ins = tf.reshape(tf.transpose(ins, [0, 2, 1, 3]), [tf.shape(ins)[0], N, nwin * nsigs]) #(bs, N, nw * ns)
+    input = tf.unstack(ins, N, axis=1)  # [N](bs, nw * ns)
 
     # Conv 1 Layer (Mean Filter)
-    with tf.name_scope('lstm'):
-        input = tf.unstack(ins, N, axis=1) # [N](bs, nw * ns)
+    with tf.name_scope('lstm_1'):
 
-        lstm_fw_cell = rnn.BasicLSTMCell(lstm_units, forget_bias=1)
-        lstm_bw_cell = rnn.BasicLSTMCell(lstm_units, forget_bias=1)
+        lstm_fw_cell = rnn.BasicLSTMCell(lstm_units_1, forget_bias=1)
+        lstm_bw_cell = rnn.BasicLSTMCell(lstm_units_1, forget_bias=1)
 
-        outputs, _, _ = rnn.static_bidirectional_rnn(lstm_fw_cell, lstm_bw_cell, input, dtype=tf.float32) # [N](bs, 2 * lstm_units)
+        outputs_1, _, _ = rnn.static_bidirectional_rnn(lstm_fw_cell, lstm_bw_cell, input, dtype=tf.float32) # [N](bs, 2 * lstm_units)
 
-        outputs = tf.stack(outputs, axis=1) # (bs, N, 2 * lstm_units)
+        outputs_1 = tf.stack(outputs_1, axis=1) # (bs, N, 2 * lstm_units)
+
+    with tf.name_scope('lstm_2'):
+        lstm_fw_cell_2 = rnn.BasicLSTMCell(lstm_units_2, forget_bias=1)
+        lstm_bw_cell_2 = rnn.BasicLSTMCell(lstm_units_2, forget_bias=1)
+
+        outputs_2, _, _ = rnn.static_bidirectional_rnn(lstm_fw_cell_2, lstm_bw_cell_2, outputs_1, dtype=tf.float32) # [N](bs, 2 * lstm_units)
+
+        outputs_2 = tf.stack(outputs_2, axis=1) # (bs, N, 2 * lstm_units)
 
     #Flatten tensors
     with tf.name_scope('flattening'):
-        flatp = tf.layers.flatten(outputs)
+        flatp = tf.layers.flatten(outputs_2)
 
     # FC 1 Layer
     with tf.name_scope('fc_1'):
@@ -73,9 +82,7 @@ def loss(logits, labels):
     return tf.reduce_mean(cross_entropy, name='xentropy_mean')
 
 
-def training(loss):
-
-    global_step = tf.Variable(0, name='global_step', trainable=False)
+def training(loss, global_step):
 
     optimizer = tf.train.AdamOptimizer(lr)
     train_op = optimizer.minimize(loss, global_step=global_step)
