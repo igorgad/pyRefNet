@@ -23,6 +23,56 @@ def add_hyperparameters_textsum(trainParams):
     return tf.summary.text('hyperparameters', tf.convert_to_tensor(table.get_html_string(format=True)))
 
 
+def estimator_model_fn(features, labels, mode, params):
+
+    ins = features['ins']
+    lbs = labels
+    typecombs = features['typecomb']
+    genres = features['genre']
+
+    keep_prob = 1.0
+    train_test_selector = 1
+    if tf.estimator.ModeKeys.TRAIN:
+        keep_prob = params['keep_prob']
+        train_test_selector = 0
+
+
+    logits = model.inference(ins, keep_prob)
+    loss = model.loss(logits, lbs)
+    optimizer = tf.train.AdamOptimizer(model.lr)
+    train_op = optimizer.minimize(loss, global_step=tf.train.get_or_create_global_step())
+    eval_top1, eval_top5, correct1, correct5 = model.evaluation(logits, lbs)
+    update_comb_stats, export_comb_stats = stats.add_comb_stats(correct1, correct5, typecombs, train_test_selector)
+    update_genre_stats = stats.add_genre_stats(correct1, correct5, genres, train_test_selector)
+    stats.add_confusion_matrix(logits, lbs)
+    predictions = {'classes': tf.argmax(logits, axis=1), 'probabilities': tf.nn.softmax(logits)}
+
+    acc = tf.metrics.accuracy(labels=labels, predictions=predictions["classes"])
+    eval_metrics = {'accuracy': acc } #, 'top1_accuracy': avg_top1_op, 'top5_accuracy': avg_top5_op } #, 'combStats': update_comb_stats, 'genreStats': update_genre_stats}
+
+    if mode == tf.estimator.ModeKeys.PREDICT:
+        return tf.estimator.EstimatorSpec(mode=tf.estimator.ModeKeys.PREDICT, predictions=predictions,
+                                          export_outputs={ 'classify': tf.estimator.export.PredictOutput(predictions) })
+
+    if tf.estimator.ModeKeys.TRAIN:
+        return tf.estimator.EstimatorSpec(mode=tf.estimator.ModeKeys.TRAIN, loss=loss, train_op=train_op, eval_metric_ops=eval_metrics)
+
+    if mode == tf.estimator.ModeKeys.EVAL:
+        return tf.estimator.EstimatorSpec(mode=tf.estimator.ModeKeys.EVAL, loss=loss, eval_metric_ops=eval_metrics)
+
+
+def start_training_with_estimator_api(trainParams):
+
+    pyref_estimator = tf.estimator.Estimator(
+        model_fn=estimator_model_fn,
+        model_dir=trainParams.log_path_dir,
+        params={
+            'keep_prob': model.kp,
+        })
+
+    pyref_estimator.train(input_fn=lambda: dataset_interface.get_train_input_fn(trainParams, model), steps=100000)
+
+
 def start_training(trainParams):
 
     with tf.Graph().as_default():
@@ -36,9 +86,9 @@ def start_training(trainParams):
         examples, train_iterator, test_iterator = dataset_interface.add_defaul_dataset_pipeline(trainParams, model, dataset_handle)
 
         ins = examples[0]
-        lbs = examples[1]
-        typecombs = examples[2]
-        genres = examples[3]
+        lbs = examples[1]['ref']
+        typecombs = examples[1]['typecomb']
+        genres = examples[1]['genre']
 
         logits = model.inference(ins, keepp_pl)
         loss   = model.loss(logits, lbs)

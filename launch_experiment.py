@@ -39,4 +39,4 @@ trainParams.log_path_dir = log_dir + trainParams.run_name
 trainParams.hptext = {key:value for key, value in trainParams.__dict__.items() if not key.startswith('__') and not callable(key)}
 
 # Run experiments
-stats = pyRef_train.start_training(trainParams)
+stats = pyRef_train.start_training_with_estimator_api(trainParams)

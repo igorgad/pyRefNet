@@ -159,6 +159,9 @@ def prepare_input_with_random_sampling(parsed_features, N, nwin, OR):
     sigmat2 = tf.where(tf.is_nan(sigmat2), tf.zeros_like(sigmat2), sigmat2)
 
     parsed_features['example/input'] = tf.stack((sigmat2, sigmat1), axis=2)
+    parsed_features['example/label'] = tf.cast(parsed_features['comb/label'], tf.int32)
+    parsed_features['example/typecomb'] = tf.string_join([parsed_features['comb/type1'], ' x ', parsed_features['comb/type2']])
+    parsed_features['example/genre'] = parsed_features['comb/genre']
 
     return parsed_features
 
@@ -174,6 +177,9 @@ def prepare_input_with_all_windows(parsed_features, N, OR):
     sigmat2 = normalize_blocks(sigmat2)
 
     parsed_features['example/input'] = tf.stack((sigmat2, sigmat1), axis=2)
+    parsed_features['example/label'] = tf.cast(parsed_features['comb/label'], tf.int32)
+    parsed_features['example/typecomb'] = tf.string_join([parsed_features['comb/type1'], ' x ', parsed_features['comb/type2']])
+    parsed_features['example/genre'] = parsed_features['comb/genre']
 
     return parsed_features
 
@@ -185,7 +191,7 @@ def parse_example(parsed_features):
     type2 = parsed_features['comb/type2']
     genre = parsed_features['comb/genre']
 
-    return ins, label, tf.string_join([type1, ' x ', type2]), genre
+    return {'ins': ins, 'typecomb': tf.string_join([type1, ' x ', type2]), 'genre': genre}, label
 
 
 def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
@@ -234,3 +240,39 @@ def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
 
     return next_element, train_iterator, test_iterator
 
+
+def get_train_input_fn(trainParams, modelParams):
+    with tf.name_scope('dataset') as scope:
+        with tf.device('/cpu:0'):
+            datasetfile = trainParams.dataset_file
+            # classes = trainParams.selected_class
+
+            N = modelParams.N
+            nwin = modelParams.nwin
+            batch_size = modelParams.batch_size
+            OR = modelParams.OR
+
+            tfdataset = tf.data.TFRecordDataset(datasetfile)
+            tfdataset = tfdataset.map(parse_features_and_decode, num_parallel_calls=4)
+            # tfdataset = tfdataset.map(turn_into_autotest, num_parallel_calls=4) #USE FOR DEBUG ONLY
+            # tfdataset = tfdataset.map(use_activation_signal_instead_of_bit_rate_signal) #USE FOR DEBUG ONLY
+
+            # tfdataset = tfdataset.filter(lambda feat: filter_perclass(feat, classes))
+            tfdataset = tfdataset.filter(filter_combinations_with_voice)
+            # tfdataset = tfdataset.map(lambda feat: replace_label_of_unselected_class(feat, classes))
+            tfdataset = tfdataset.map(lambda feat: clean_from_activation_signal(feat, 0.8), num_parallel_calls=4)
+            tfdataset = tfdataset.filter(lambda feat: filter_sigsize_leq_N(feat, N))
+            # tfdataset = tfdataset.filter(lambda feat: filter_perwindow(feat, N, nwin, OR))
+            tfdataset = tfdataset.map(lambda feat: prepare_input_with_random_sampling(feat, N, nwin, OR), num_parallel_calls=4)
+            # tfdataset = tfdataset.map(lambda feat: prepare_input_with_all_windows(feat, N, OR))
+
+            tfdataset = tfdataset.map(lambda feat: split_train_test(feat, trainParams.train_test_rate), num_parallel_calls=4)
+            train_dataset = tfdataset.filter(grab_train_examples).map(parse_example, num_parallel_calls=4)
+
+            train_dataset = train_dataset.shuffle(4096, reshuffle_each_iteration=True)
+            train_dataset = train_dataset.prefetch(buffer_size=batch_size)
+            train_dataset = train_dataset.batch(batch_size)
+
+            train_iterator = train_dataset.make_one_shot_iterator().get_next()
+
+    return train_iterator

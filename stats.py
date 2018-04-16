@@ -79,7 +79,7 @@ def add_comb_stats(correct1, correct5, typecombs, train_test_table_selector):
             tf.summary.image('top1_typecomb', tf.expand_dims(top1_plot_op, 0), max_outputs=1)
             tf.summary.image('top5_typecomb', tf.expand_dims(top5_plot_op, 0), max_outputs=1)
 
-    return [update_top1_table, update_top5_table]
+    return [update_top1_table, update_top5_table], [export_test_top1_table, export_test_top5_table]
 
 
 def add_confusion_matrix(logits, labels):
