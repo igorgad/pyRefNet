@@ -4,7 +4,7 @@ import time
 import tensorflow as tf
 import numpy as np
 import tfplot
-import models.rkhsModel as model #Chose model here!!!
+import models.colorRkhsModel as model #Chose model here!!!
 import dataset_interface
 import stats
 from tensorflow.python import debug as tf_debug
@@ -26,6 +26,8 @@ def add_hyperparameters_textsum(trainParams):
 def start_training(trainParams):
 
     with tf.Graph().as_default():
+
+        tf.set_random_seed(0)
 
         keepp_pl = tf.placeholder(tf.float32)
         train_test_selector = tf.placeholder(tf.int32)
@@ -84,80 +86,92 @@ def start_training(trainParams):
 
         gstep = 0
         try:
+            sess.run(train_iterator.initializer)
+            sess.run(test_iterator.initializer)
             # Start the training loop.
             while gstep < trainParams.num_steps:
-                # Train
-                sess.run(reset_op)
-                sess.run(train_iterator.initializer)
+                try:
+                    # Train
+                    sess.run(reset_op)
+                    if trainParams.trace:
+                        run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                        run_metadata = tf.RunMetadata()
 
-                if trainParams.trace:
-                    run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-                    run_metadata = tf.RunMetadata()
+                        _, loss_value, top1_value, top5_value, __, ___, gstep = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_comb_stats, update_genre_stats, global_step],
+                                                                             feed_dict={dataset_handle: training_handle, train_test_selector: 0, keepp_pl: model.kp}, options=run_options,
+                                                                             run_metadata=run_metadata)
 
-                    _, loss_value, top1_value, top5_value, __, ___, gstep = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_comb_stats, update_genre_stats, global_step],
-                                                                         feed_dict={dataset_handle: training_handle, train_test_selector: 0, keepp_pl: model.kp}, options=run_options,
-                                                                         run_metadata=run_metadata)
+                        train_writer.add_run_metadata(run_metadata, 'stats_epoch %d' % gstep)
+                        train_writer.flush()
 
-                    train_writer.add_run_metadata(run_metadata, 'stats_epoch %d' % gstep)
-                    train_writer.flush()
+                        print('%s: TRAIN step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
+                              (trainParams.run_name, gstep, 0.0, loss_value, top1_value, top5_value))
 
-                    print('%s: TRAIN step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
-                          (trainParams.run_name, gstep, 0.0, loss_value, top1_value, top5_value))
+                    while True:
+                        try:
+                            start_time = time.time()
 
-                while True:
-                    try:
-                        start_time = time.time()
+                            # Log training runtime statistics
+                            if np.mod(gstep + 1, trainParams.summary_interval) == 0:
+                                summary_str, _, loss_value, top1_value, top5_value, __, ___, gstep = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op,
+                                                                                                               update_comb_stats, update_genre_stats, global_step],
+                                                                                                         feed_dict={dataset_handle: training_handle, train_test_selector: 0, keepp_pl: model.kp})
 
-                        # Log training runtime statistics
-                        if np.mod(gstep + 1, trainParams.summary_interval) == 0:
-                            summary_str, _, loss_value, top1_value, top5_value, __, ___, gstep = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op,
-                                                                                                           update_comb_stats, update_genre_stats, global_step],
-                                                                                                     feed_dict={dataset_handle: training_handle, train_test_selector: 0, keepp_pl: model.kp})
+                                train_writer.add_summary(summary_str, gstep )
+                                train_writer.flush()
 
-                            train_writer.add_summary(summary_str, gstep )
-                            train_writer.flush()
+                                sess.run([reset_op])
+                            else:
+                                _, loss_value, top1_value, top5_value, __, ___, gstep = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op,
+                                                                                                  update_comb_stats, update_genre_stats, global_step],
+                                                                                  feed_dict={dataset_handle: training_handle, train_test_selector: 0, keepp_pl: model.kp})
 
-                            sess.run([reset_op])
-                        else:
-                            _, loss_value, top1_value, top5_value, __, ___, gstep = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op,
-                                                                                              update_comb_stats, update_genre_stats, global_step],
-                                                                              feed_dict={dataset_handle: training_handle, train_test_selector: 0, keepp_pl: model.kp})
+                            duration = time.time() - start_time
 
-                        duration = time.time() - start_time
+                            print ('%s: TRAIN step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
+                                   (trainParams.run_name, gstep, model.batch_size/duration, loss_value, top1_value, top5_value) )
 
-                        print ('%s: TRAIN step %d. %0.2f hz loss: %0.04f top1 %0.04f top5 %0.04f' %
-                               (trainParams.run_name, gstep, model.batch_size/duration, loss_value, top1_value, top5_value) )
+                        except tf.errors.OutOfRangeError:
+                            sess.run(train_iterator.initializer)
+                            break
 
-                    except tf.errors.OutOfRangeError:
-                        break
+                    # Evaluate
+                    sess.run([reset_op])
+                    while True:
+                        try:
+                            start_time = time.time()
 
-                # Evaluate
-                sess.run([reset_op])
-                sess.run(test_iterator.initializer)
-                while True:
-                    try:
-                        start_time = time.time()
+                            loss_value, top1_value, top5_value, _, ___, gstep = sess.run([avg_loss_op, avg_top1_op, avg_top5_op, update_comb_stats, update_genre_stats, global_step],
+                                                                                          feed_dict={dataset_handle: testing_handle, train_test_selector: 1, keepp_pl: 1})
 
-                        loss_value, top1_value, top5_value, _, ___, gstep = sess.run([avg_loss_op, avg_top1_op, avg_top5_op, update_comb_stats, update_genre_stats, global_step],
-                                                                                      feed_dict={dataset_handle: testing_handle, train_test_selector: 1, keepp_pl: 1})
+                            duration = time.time() - start_time
+                            print('%s: TEST step %d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
+                                  (trainParams.run_name, gstep, model.batch_size / duration, loss_value, top1_value, top5_value))
 
-                        duration = time.time() - start_time
-                        print('%s: TEST step %d. %0.2f hz. loss: %0.04f. top1 %0.04f. top5 %0.04f' %
-                              (trainParams.run_name, gstep, model.batch_size / duration, loss_value, top1_value, top5_value))
+                        except tf.errors.OutOfRangeError:
+                            sess.run(test_iterator.initializer)
+                            break
 
-                    except tf.errors.OutOfRangeError:
-                        break
+                    summary_str, loss_value, top1_value, top5_value, _ , ___, gstep = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op,
+                                                                                                update_comb_stats, update_genre_stats, global_step],
+                                                                                  feed_dict={dataset_handle: testing_handle, train_test_selector: 1, keepp_pl: 1})
+                    test_writer.add_summary(summary_str, gstep)
+                    test_writer.flush()
 
-                sess.run(test_iterator.initializer)
-                summary_str, loss_value, top1_value, top5_value, _ , ___, gstep = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op,
-                                                                                            update_comb_stats, update_genre_stats, global_step],
-                                                                              feed_dict={dataset_handle: testing_handle, train_test_selector: 1, keepp_pl: 1})
-                test_writer.add_summary(summary_str, gstep)
-                test_writer.flush()
+                    # Save a checkpoint
+                    checkpoint_file = os.path.join(trainParams.log_path_dir, 'model.ckpt')
+                    saver.save(sess, checkpoint_file, global_step=gstep)
 
-                # Save a checkpoint
-                checkpoint_file = os.path.join(trainParams.log_path_dir, 'model.ckpt')
-                saver.save(sess, checkpoint_file, global_step=gstep)
+                except Exception as e:
+                    print('Received expection while training: ' + str(e) + ', recovering from last checkpoint')
+                    os.system('sudo sh -c "sync; echo 1 > /proc/sys/vm/drop_caches"')
+                    sess.run(train_iterator.initializer)
+                    sess.run(test_iterator.initializer)
+
+                    # ckpt = tf.train.get_checkpoint_state(trainParams.restore_from_dir[0])
+                    # if ckpt and ckpt.model_checkpoint_path:
+                    #     saver.restore(sess, ckpt.model_checkpoint_path)
+                    # print('loaded graph from dir %s' % trainParams.restore_from_dir[0])
 
         except Exception as e:
             print('finishing...' + str(e))

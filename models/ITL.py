@@ -38,18 +38,26 @@ def gspace(x,y,s):
         return tf.transpose(tf.reduce_mean(tf.map_fn(rloop, tf.range(tf.shape(y)[2]), dtype=tf.float32, parallel_iterations=8), axis=2), [1, 0, 2])
 
 
-def gspace_layer(ins,Sigma):
+def gspace_mono_layer(ins,Sigma):
     [x, y] = tf.unstack(ins, axis=3)
-
-    # gsr = [tf.image.per_image_standardization(gspace(x, x, Sigma)), tf.image.per_image_standardization(gspace(y, y, Sigma)),
-    #        tf.image.per_image_standardization(gspace(x, y, Sigma))]
-    # gsr = tf.stack(gsr, axis=3)
 
     gsr = tf.image.per_image_standardization(gspace(x, y, Sigma))
     gsr = tf.expand_dims(gsr, axis=3)
 
     gsr.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 1])  # Fix lost dimensions
     return gsr
+
+
+def gspace_color_layer(ins,Sigma):
+    [x, y] = tf.unstack(ins, axis=3)
+
+    gsr = [tf.image.per_image_standardization(gspace(x, x, Sigma)), tf.image.per_image_standardization(gspace(y, y, Sigma)),
+           tf.image.per_image_standardization(gspace(x, y, Sigma))]
+    gsr = tf.stack(gsr, axis=3)
+
+    gsr.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 3])  # Fix lost dimensions
+    return gsr
+
 
 
 ####### Normalized Cross Correntropy Layer

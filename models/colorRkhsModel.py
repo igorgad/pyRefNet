@@ -8,21 +8,21 @@ name = 'color-rkhs'
 # TODO - encapsulate network params into a netparam dict
 ##### NETWORK PARAMS #####
 N = 256     # VBR signal length
-nwin = 64   # Number of windows
+nwin = 32   # Number of windows
 nsigs = 2   # Amount of signals
 OR = 4      # Frame Overlap Ratio
-batch_size = 32
+batch_size = 16
 lr = 0.0001
 
 trefClass = np.array(range(-80,80)).astype(np.int32)
 sigma = 10
 
-kp = 0.6
+kp = 0.5
 
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
 
-shapeconv2 = [9, 9, 1, 16]
+shapeconv2 = [9, 9, 3, 16]
 shapeconv3 = [9, 9, 16, 32]
 shapeconv4 = [5, 5, 32, 64]
 
@@ -71,7 +71,7 @@ def inference(ins, keep_prob):
     with tf.name_scope('rkhs'):
         Sigma = tf.Variable(np.float32(sigma), trainable=False)
 
-        hs = ITL.gspace_layer(conv1, Sigma)
+        hs = ITL.gspace_color_layer(conv1, Sigma)
 
         tf.summary.image('rkhs_color', hs)
         tf.summary.scalar('sigma', Sigma)

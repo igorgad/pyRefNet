@@ -10,8 +10,11 @@ name = 'lstm'
 N = 256     # VBR signal length - time steps
 nwin = 64   # Number of windows - number of inputs
 nsigs = 2   # Amount of signals
-batch_size = 256
+OR = 4      # Frame Overlap Ratio
+batch_size = 128
 lr = 0.0001
+
+kp = 0.5
 
 trefClass = np.array(range(-80,80)).astype(np.int32)
 
@@ -35,21 +38,21 @@ def inference(ins, keep_prob): # (bs, nw, N, ns)
         lstm_fw_cell = rnn.BasicLSTMCell(lstm_units_1, forget_bias=1)
         lstm_bw_cell = rnn.BasicLSTMCell(lstm_units_1, forget_bias=1)
 
-        outputs_1, _, _ = rnn.static_bidirectional_rnn(lstm_fw_cell, lstm_bw_cell, input, dtype=tf.float32) # [N](bs, 2 * lstm_units)
+        outputs_1, _1, __1 = rnn.static_bidirectional_rnn(lstm_fw_cell, lstm_bw_cell, input, dtype=tf.float32) # [N](bs, 2 * lstm_units)
 
         outputs_1 = tf.stack(outputs_1, axis=1) # (bs, N, 2 * lstm_units)
-
-    with tf.name_scope('lstm_2'):
-        lstm_fw_cell_2 = rnn.BasicLSTMCell(lstm_units_2, forget_bias=1)
-        lstm_bw_cell_2 = rnn.BasicLSTMCell(lstm_units_2, forget_bias=1)
-
-        outputs_2, _, _ = rnn.static_bidirectional_rnn(lstm_fw_cell_2, lstm_bw_cell_2, outputs_1, dtype=tf.float32) # [N](bs, 2 * lstm_units)
-
-        outputs_2 = tf.stack(outputs_2, axis=1) # (bs, N, 2 * lstm_units)
+    #
+    # with tf.name_scope('lstm_2'):
+    #     lstm_fw_cell_2 = rnn.BasicLSTMCell(lstm_units_2, forget_bias=1)
+    #     lstm_bw_cell_2 = rnn.BasicLSTMCell(lstm_units_2, forget_bias=1)
+    #
+    #     outputs_2, _2, __2 = rnn.static_bidirectional_rnn(lstm_fw_cell_2, lstm_bw_cell_2, outputs_1, dtype=tf.float32) # [N](bs, 2 * lstm_units)
+    #
+    #     outputs_2 = tf.stack(outputs_2, axis=1) # (bs, N, 2 * lstm_units)
 
     #Flatten tensors
     with tf.name_scope('flattening'):
-        flatp = tf.layers.flatten(outputs_2)
+        flatp = tf.layers.flatten(outputs_1)
 
     # FC 1 Layer
     with tf.name_scope('fc_1'):
