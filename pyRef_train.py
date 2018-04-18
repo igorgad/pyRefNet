@@ -4,7 +4,7 @@ import time
 import tensorflow as tf
 import numpy as np
 import tfplot
-import models.colorRkhsModel as model #Chose model here!!!
+import models.monoRkhsModel as model #Chose model here!!!
 import dataset_interface
 import stats
 from tensorflow.python import debug as tf_debug

@@ -15,7 +15,7 @@ log_dir     = '/home/pepeu/DATA_DRIVE/DATASETS/MedleyDB/tensorlogs/'
 train_test_rate = 0.7
 
 run_name      = "nwtraintest_stereovbr-wgenre-dropout-{}_N{}_NW{}".format(pyRef_train.model.name, pyRef_train.model.N, pyRef_train.model.nwin)
-sum_interval = 200
+sum_interval = 400
 
 # Parse arguments
 parser = argparse.ArgumentParser(description='Launch training session of pyrefnet.')
