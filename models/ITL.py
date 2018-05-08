@@ -59,6 +59,16 @@ def gspace_color_layer(ins,Sigma):
     return gsr
 
 
+def gspace_multiscale_layer(ins,Sigma):
+    [x, y] = tf.unstack(ins, axis=3)
+    sigt = tf.unstack(Sigma)
+
+    gsr = [tf.image.per_image_standardization(gspace(x, y, sigt[0])), tf.image.per_image_standardization(gspace(x, y, sigt[1])),
+           tf.image.per_image_standardization(gspace(x, y, sigt[2]))]
+    gsr = tf.stack(gsr, axis=3)
+
+    gsr.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 3])  # Fix lost dimensions
+    return gsr
 
 ####### Normalized Cross Correntropy Layer
 def ncc(x, y, marray, s):

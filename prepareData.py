@@ -8,19 +8,19 @@ import os
 from subprocess import call
 import scipy.io.wavfile as wf
 
-maxSamplesDelay = 88200
+maxSamplesDelay = 39424 #88200_1152 19712_256
 #### n of dataset augmentation
 nexpan = 50
 #### ENCODE PARAMS
-blocksize = 1152
+blocksize = 512
 maxBlockDelay = 1 + maxSamplesDelay // blocksize
 #### PATHs
-dataroot = '/home/pepeu/workspace/DOC/Dataset/'
+dataroot = '/home/pepeu/workspace/Dataset/'
 # dataroot = '/home/pepeu/DATA_DRIVE/DATASETS/MedleyDB'
 active_dir = dataroot + '/ACTIVATION_CONF'
 metadata_dir = dataroot + '/METADATA/'
 audio_dir = dataroot + '/Audio/'
-tfrecordfile = '/home/pepeu/workspace/DOC/Dataset/stereo_wgenre_bitrate_medleydb_blocksize' + str(blocksize) + '.tfrecord'
+tfrecordfile = '/home/pepeu/workspace/Dataset/stereo_wgenre_bitrate_medleydb_blocksize' + str(blocksize) + '.tfrecord'
 #### Dataset type classification
 rythm = ['gong', 'auxiliary percussion', 'bass drum', 'bongo', 'chimes','claps', 'cymbal', 'drum machine', 'darbuka', 'glockenspiel','doumbek', 'drum set', 'kick drum', 'shaker', 'snare drum', 'tabla', 'tambourine', 'timpani', 'toms', 'vibraphone']
 eletronic = ['Main System', 'fx/processed sound', 'sampler','scratches' ]
@@ -203,7 +203,7 @@ lost = 0
 try:
 
     for xpan in range(nexpan):
-        for file in os.listdir(metdir):
+        for file in sorted(os.listdir(metdir)):
             yml = yaml.load(open(os.path.join(metdir, file), 'r').read(-1))
 
 

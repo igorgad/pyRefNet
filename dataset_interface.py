@@ -190,47 +190,47 @@ def parse_example(parsed_features):
 
 def add_defaul_dataset_pipeline(trainParams, modelParams, iterator_handle):
     with tf.name_scope('dataset') as scope:
-        with tf.device('/cpu:0'):
-            datasetfile = trainParams.dataset_file
-            # classes = trainParams.selected_class
 
-            N = modelParams.N
-            nwin = modelParams.nwin
-            batch_size = modelParams.batch_size
-            OR = modelParams.OR
+        datasetfile = trainParams.dataset_file
+        # classes = trainParams.selected_class
 
-            tfdataset = tf.data.TFRecordDataset(datasetfile)
-            tfdataset = tfdataset.map(parse_features_and_decode, num_parallel_calls=4)
-            # tfdataset = tfdataset.map(turn_into_autotest, num_parallel_calls=4) #USE FOR DEBUG ONLY
-            # tfdataset = tfdataset.map(use_activation_signal_instead_of_bit_rate_signal) #USE FOR DEBUG ONLY
+        N = modelParams.N
+        nwin = modelParams.nwin
+        batch_size = modelParams.batch_size
+        OR = modelParams.OR
 
-            # tfdataset = tfdataset.filter(lambda feat: filter_perclass(feat, classes))
-            tfdataset = tfdataset.filter(filter_combinations_with_voice)
-            # tfdataset = tfdataset.map(lambda feat: replace_label_of_unselected_class(feat, classes))
-            tfdataset = tfdataset.map(lambda feat: clean_from_activation_signal(feat, 0.8), num_parallel_calls=4)
-            tfdataset = tfdataset.filter(lambda feat: filter_sigsize_leq_N(feat, N))
-            # tfdataset = tfdataset.filter(lambda feat: filter_perwindow(feat, N, nwin, OR))
-            tfdataset = tfdataset.map(lambda feat: prepare_input_with_random_sampling(feat, N, nwin, OR), num_parallel_calls=4)
-            # tfdataset = tfdataset.map(lambda feat: prepare_input_with_all_windows(feat, N, OR))
+        tfdataset = tf.data.TFRecordDataset(datasetfile)
+        tfdataset = tfdataset.map(parse_features_and_decode, num_parallel_calls=4)
+        # tfdataset = tfdataset.map(turn_into_autotest, num_parallel_calls=4) #USE FOR DEBUG ONLY
+        # tfdataset = tfdataset.map(use_activation_signal_instead_of_bit_rate_signal) #USE FOR DEBUG ONLY
 
-            tfdataset = tfdataset.map(lambda feat: split_train_test(feat, trainParams.train_test_rate), num_parallel_calls=4)
-            train_dataset = tfdataset.filter(grab_train_examples).map(parse_example, num_parallel_calls=4)
-            test_dataset = tfdataset.filter(grab_test_examples).map(parse_example, num_parallel_calls=4)
+        # tfdataset = tfdataset.filter(lambda feat: filter_perclass(feat, classes))
+        tfdataset = tfdataset.filter(filter_combinations_with_voice)
+        # tfdataset = tfdataset.map(lambda feat: replace_label_of_unselected_class(feat, classes))
+        tfdataset = tfdataset.map(lambda feat: clean_from_activation_signal(feat, 0.9), num_parallel_calls=4)
+        tfdataset = tfdataset.filter(lambda feat: filter_sigsize_leq_N(feat, N))
+        # tfdataset = tfdataset.filter(lambda feat: filter_perwindow(feat, N, nwin, OR))
+        tfdataset = tfdataset.map(lambda feat: prepare_input_with_random_sampling(feat, N, nwin, OR), num_parallel_calls=4)
+        # tfdataset = tfdataset.map(lambda feat: prepare_input_with_all_windows(feat, N, OR))
 
-            train_dataset = train_dataset.shuffle(4096, reshuffle_each_iteration=True)
-            test_dataset = test_dataset.shuffle(4096, reshuffle_each_iteration=True)
+        tfdataset = tfdataset.map(lambda feat: split_train_test(feat, trainParams.train_test_rate), num_parallel_calls=4)
+        train_dataset = tfdataset.filter(grab_train_examples).map(parse_example, num_parallel_calls=4)
+        test_dataset = tfdataset.filter(grab_test_examples).map(parse_example, num_parallel_calls=4)
 
-            train_dataset = train_dataset.prefetch(buffer_size=batch_size)
-            test_dataset = test_dataset.prefetch(buffer_size=batch_size)
+        train_dataset = train_dataset.shuffle(4096, reshuffle_each_iteration=True)
+        test_dataset = test_dataset.shuffle(4096, reshuffle_each_iteration=True)
 
-            train_dataset = train_dataset.batch(batch_size)
-            test_dataset = test_dataset.batch(batch_size)
+        train_dataset = train_dataset.prefetch(buffer_size=batch_size)
+        test_dataset = test_dataset.prefetch(buffer_size=batch_size)
 
-            iterator = tf.data.Iterator.from_string_handle(iterator_handle, train_dataset.output_types, train_dataset.output_shapes)
-            next_element = iterator.get_next()
+        train_dataset = train_dataset.batch(batch_size)
+        test_dataset = test_dataset.batch(batch_size)
 
-            train_iterator = train_dataset.make_initializable_iterator()
-            test_iterator = test_dataset.make_initializable_iterator()
+        iterator = tf.data.Iterator.from_string_handle(iterator_handle, train_dataset.output_types, train_dataset.output_shapes)
+        next_element = iterator.get_next()
+
+        train_iterator = train_dataset.make_initializable_iterator()
+        test_iterator = test_dataset.make_initializable_iterator()
 
     return next_element, train_iterator, test_iterator
 
