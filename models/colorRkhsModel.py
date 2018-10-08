@@ -11,7 +11,7 @@ N = 256     # VBR signal length
 nwin = 32   # Number of windows
 nsigs = 2   # Amount of signals
 OR = 4      # Frame Overlap Ratio
-batch_size = 16
+batch_size = 64
 lr = 0.0001
 
 trefClass = np.array(range(-80,80)).astype(np.int32)
@@ -22,18 +22,19 @@ kp = 0.5
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
 
-shapeconv2 = [9, 9, 3, 16]
-shapeconv3 = [9, 9, 16, 32]
-shapeconv4 = [5, 5, 32, 64]
+shapeconv2 = [9, 9, 3, 8]
+shapeconv3 = [5, 5, 8, 16]
+shapeconv4 = [5, 5, 16, 32]
 
-fc1_nhidden = 2048
+fc1_nhidden = 4096
+fc2_nhidden = 1024
 nclass = len(trefClass)
 
 medconvtrain = False
 
 hptext = {'model_name': name, 'N': N, 'nwin': nwin, 'lr': lr, 'kp': kp, 'medconvtrain': medconvtrain,
           'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize,
-          'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden, 'nclass': nclass}
+          'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden, 'fc2_nhidden': fc2_nhidden, 'nclass': nclass}
 
 
 ##########################
@@ -138,12 +139,23 @@ def inference(ins, keep_prob):
         tf.summary.histogram('wfc1-gram', wfc1)
         tf.summary.histogram('bfc1-gram', bfc1)
 
+    # FC 2 Layer
+    with tf.name_scope('fc_2'):
+        wfc2 = tf.Variable(xavier_init([fc1_nhidden, fc2_nhidden]))
+        bfc2 = tf.Variable(np.zeros(fc2_nhidden).astype(np.float32))
+
+        fc2 = activation(tf.matmul(dropfc1, wfc2) + bfc2)
+        dropfc2 = tf.nn.dropout(fc2, keep_prob)
+
+        tf.summary.histogram('wfc2-gram', wfc2)
+        tf.summary.histogram('bfc2-gram', bfc2)
+
     # Logits Layer
     with tf.name_scope('logits'):
-        wl = tf.Variable(xavier_init([fc1_nhidden,nclass]))
+        wl = tf.Variable(xavier_init([fc2_nhidden,nclass]))
         bl = tf.Variable(np.zeros(nclass).astype(np.float32))
 
-        logits = tf.matmul(dropfc1, wl) + bl
+        logits = tf.matmul(dropfc2, wl) + bl
 
         tf.summary.histogram('w-logits', wl)
         tf.summary.histogram('b-logits', bl)

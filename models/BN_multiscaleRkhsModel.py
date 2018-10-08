@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 import models.ITL as ITL
 
-name = 'multiscale-rkhs'
+name = 'BN-multiscale-rkhs'
 # TODO - encapsulate network params into a netparam dict
 ##### NETWORK PARAMS #####
 N = 256     # VBR signal length
@@ -12,12 +12,12 @@ nwin = 64   # Number of windows
 nsigs = 2   # Amount of signals
 OR = 4      # Frame Overlap Ratio
 batch_size = 64
-lr = 0.0003
+lr = 0.0001
 
 trefClass = np.array(range(-80,80)).astype(np.int32)
 sigma = [0.1, 1.0, 10]
 
-kp = 0.5
+kp = 0.6
 
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
@@ -79,48 +79,45 @@ def inference(ins, keep_prob):
     # Conv 2 Layer
     with tf.name_scope('conv_2'):
         wc2 = tf.Variable(xavier_init_conv2d(shapeconv2))
-        bc2 =  tf.Variable(np.zeros(shapeconv2[3]).astype(np.float32))
 
-        conv2 = activation(tf.nn.conv2d(hs, wc2, strides=[1,1,1,1], padding='SAME') + bc2 )
-        pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
-        # drop2 = tf.nn.dropout(pool2, keep_prob)
+        conv2 = tf.nn.conv2d(hs, wc2, strides=[1,1,1,1], padding='SAME')
+        conv2 = tf.layers.batch_normalization(conv2, center=True, scale=False)
+        conv2 = activation(conv2)
+        conv2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
 
-        p2feat = tf.unstack(pool2, axis=3)
+        p2feat = tf.unstack(conv2, axis=3)
         tf.summary.image('conv2_feat', tf.expand_dims(p2feat[0], axis=3))
         tf.summary.histogram('wc2-gram', wc2)
-        tf.summary.histogram('bc2-gram', bc2)
 
     # Conv 3 Layer
     with tf.name_scope('conv_3'):
         wc3 = tf.Variable(xavier_init_conv2d(shapeconv3))
-        bc3 =  tf.Variable(np.zeros(shapeconv3[3]).astype(np.float32))
 
-        conv3 = activation( tf.nn.conv2d(pool2, wc3, strides=[1,1,1,1], padding='SAME') + bc3 )
-        pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
-        # drop3 = tf.nn.dropout(pool3, keep_prob)
+        conv3 = tf.nn.conv2d(conv2, wc3, strides=[1,1,1,1], padding='SAME')
+        conv3 = tf.layers.batch_normalization(conv3, center=True, scale=False)
+        conv3 = activation(conv3)
+        conv3 = tf.nn.max_pool(conv3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
 
-        p3feat = tf.unstack(pool3, axis=3)
+        p3feat = tf.unstack(conv3, axis=3)
         tf.summary.image('conv3_feat', tf.expand_dims(p3feat[0], axis=3))
         tf.summary.histogram('wc3-gram', wc3)
-        tf.summary.histogram('bc3-gram', bc3)
 
     # Conv 4 Layer
     with tf.name_scope('conv_4'):
         wc4 = tf.Variable(xavier_init_conv2d(shapeconv4))
-        bc4 =  tf.Variable(np.zeros(shapeconv4[3]).astype(np.float32))
-    
-        conv4 = activation( tf.nn.conv2d(pool3, wc4, strides=[1,1,1,1], padding='SAME') + bc4 )
-        pool4 = tf.nn.max_pool(conv4, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
-        # drop4 = tf.nn.dropout(pool4, keep_prob)
-    
-        p4feat = tf.unstack(pool4, axis=3)
+
+        conv4 = tf.nn.conv2d(conv3, wc4, strides=[1,1,1,1], padding='SAME')
+        conv4 = tf.layers.batch_normalization(conv4, center=True, scale=False)
+        conv4 = activation(conv4)
+        conv4 = tf.nn.max_pool(conv4, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+
+        p4feat = tf.unstack(conv4, axis=3)
         tf.summary.image('conv4_feat', tf.expand_dims(p4feat[0], axis=3))
         tf.summary.histogram('wc4-gram', wc4)
-        tf.summary.histogram('bc4-gram', bc4)
 
     #Flatten tensors
     with tf.name_scope('flattening'):
-        flat4 = tf.layers.flatten(pool4)
+        flat4 = tf.layers.flatten(conv3)
 
     # FC 1 Layer
     with tf.name_scope('fc_1'):
@@ -143,7 +140,6 @@ def inference(ins, keep_prob):
 
         tf.summary.histogram('wfc2-gram', wfc2)
         tf.summary.histogram('bfc2-gram', bfc2)
-
 
     # Logits Layer
     with tf.name_scope('logits'):

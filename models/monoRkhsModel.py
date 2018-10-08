@@ -8,10 +8,10 @@ name = 'mono-rkhs'
 # TODO - encapsulate network params into a netparam dict
 ##### NETWORK PARAMS #####
 N = 256     # VBR signal length
-nwin = 64   # Number of windows
+nwin = 32   # Number of windows
 nsigs = 2   # Amount of signals
 OR = 4      # Frame Overlap Ratio
-batch_size = 32
+batch_size = 64
 lr = 0.0001
 
 trefClass = np.array(range(-80,80)).astype(np.int32)
@@ -22,11 +22,11 @@ kp = 0.5
 medfiltersize = 8
 medinit = 1/medfiltersize * np.ones((1, medfiltersize, 1, 1), dtype=np.float32)
 
-shapeconv2 = [9, 9, 1, 8]
-shapeconv3 = [5, 5, 8, 16]
-shapeconv4 = [5, 5, 16, 32]
+shapeconv2 = [9, 9, 1, 24]
+shapeconv3 = [5, 5, 24, 32]
+# shapeconv4 = [5, 5, 16, 32]
 
-fc1_nhidden = 4096
+fc1_nhidden = 2048
 fc2_nhidden = 1024
 nclass = len(trefClass)
 
@@ -34,7 +34,7 @@ medconvtrain = False
 
 hptext = {'model_name': name, 'N': N, 'nwin': nwin, 'lr': lr, 'kp': kp, 'medconvtrain': medconvtrain,
           'batch_size': batch_size,  'sigma': sigma, 'medfiltersize': medfiltersize,
-          'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'shapeconv4': shapeconv4, 'fc1_nhidden': fc1_nhidden, 'fc2_nhidden': fc2_nhidden, 'nclass': nclass}
+          'shapeconv2': shapeconv2, 'shapeconv3': shapeconv3, 'fc1_nhidden': fc1_nhidden, 'fc2_nhidden': fc2_nhidden, 'nclass': nclass}
 
 
 ##########################
@@ -111,22 +111,22 @@ def inference(ins, keep_prob):
         tf.summary.histogram('bc3-gram', bc3)
 
     # Conv 4 Layer
-    with tf.name_scope('conv_4'):
-        wc4 = tf.Variable(xavier_init_conv2d(shapeconv4))
-        bc4 =  tf.Variable(np.zeros(shapeconv4[3]).astype(np.float32))
+    # with tf.name_scope('conv_4'):
+    #     wc4 = tf.Variable(xavier_init_conv2d(shapeconv4))
+    #     bc4 =  tf.Variable(np.zeros(shapeconv4[3]).astype(np.float32))
 
-        conv4 = activation( tf.nn.conv2d(pool3, wc4, strides=[1,1,1,1], padding='SAME') + bc4 )
-        pool4 = tf.nn.max_pool(conv4, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
-        # drop4 = tf.nn.dropout(pool4, keep_prob)
+    #     conv4 = activation( tf.nn.conv2d(pool3, wc4, strides=[1,1,1,1], padding='SAME') + bc4 )
+    #     pool4 = tf.nn.max_pool(conv4, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+    #     # drop4 = tf.nn.dropout(pool4, keep_prob)
 
-        p4feat = tf.unstack(pool4, axis=3)
-        tf.summary.image('conv4_feat', tf.expand_dims(p4feat[0], axis=3))
-        tf.summary.histogram('wc4-gram', wc4)
-        tf.summary.histogram('bc4-gram', bc4)
+    #     p4feat = tf.unstack(pool4, axis=3)
+    #     tf.summary.image('conv4_feat', tf.expand_dims(p4feat[0], axis=3))
+    #     tf.summary.histogram('wc4-gram', wc4)
+    #     tf.summary.histogram('bc4-gram', bc4)
 
     #Flatten tensors
     with tf.name_scope('flattening'):
-        flat4 = tf.layers.flatten(pool4)
+        flat4 = tf.layers.flatten(pool3)
 
     # FC 1 Layer
     with tf.name_scope('fc_1'):

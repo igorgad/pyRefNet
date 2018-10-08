@@ -2,14 +2,12 @@ import os
 import time
 import tensorflow as tf
 import numpy as np
-import tfplot
-import models.multiscaleRkhsModel as model  # Chose model here!!!
+import models.BN_monoRkhsModel as model  # Chose model here!!!
 import dataset_interface
 import stats
 from tensorflow.python import debug as tf_debug
 
 from prettytable import PrettyTable
-
 
 def add_hyperparameters_textsum(trainParams):
     table = PrettyTable(['hparams', 'value'])
@@ -39,18 +37,26 @@ def start_training(trainParams):
         ins = examples[0]
         lbs = examples[1]
         typecombs = examples[2]
-        genres = examples[3]
+        instcombs = examples[3]
+        genres = examples[4]
+        ids = examples[5]
+        audiofiles = examples[6]
 
-        logits = model.inference(ins, keepp_pl)
+        logits, rkhs = model.inference(ins, keepp_pl)
         loss = model.loss(logits, lbs)
         train_op = model.training(loss, global_step)
         eval_top1, eval_top5, correct1, correct5 = model.evaluation(logits, lbs)
 
         with tf.device('/cpu:0'):
             avg_loss_op, avg_top1_op, avg_top5_op, reset_op = stats.add_summaries(loss, eval_top1, eval_top5)
-            update_comb_stats = stats.add_comb_stats(correct1, correct5, typecombs, train_test_selector)
-            update_genre_stats = stats.add_genre_stats(correct1, correct5, genres, train_test_selector)
+            update_comb_stats, reset_comb_stats = stats.add_comb_stats(correct1, correct5, typecombs, train_test_selector)
+            update_inst_stats, reset_inst_stats = stats.add_inst_stats(correct1, correct5, instcombs, train_test_selector)
+            update_genre_stats, reset_genre_stats = stats.add_genre_stats(correct1, correct5, genres, train_test_selector)
             stats.add_confusion_matrix(logits, lbs)
+            stats.collect_wrong_examples(correct1, ins, rkhs, instcombs, typecombs, ids, audiofiles)
+
+            reset_all = [reset_op, reset_comb_stats, reset_genre_stats]
+            update_stats = [update_comb_stats, update_inst_stats, update_genre_stats]
 
         summary = tf.summary.merge_all()
 
@@ -58,7 +64,8 @@ def start_training(trainParams):
         saver = tf.train.Saver()
 
         config = tf.ConfigProto()
-        config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+        # config.gpu_options.allow_growth = True
+        # config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
 
         sess = tf.Session(config=config)
         if trainParams.debug:
@@ -100,7 +107,7 @@ def start_training(trainParams):
                         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                         run_metadata = tf.RunMetadata()
 
-                        _, loss_value, top1_value, top5_value, __, ___, gstep = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_comb_stats, update_genre_stats, global_step],
+                        _, loss_value, top1_value, top5_value, __, gstep = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op, update_stats, global_step],
                                                                                          feed_dict={dataset_handle: training_handle, train_test_selector: 0, keepp_pl: model.kp}, options=run_options,
                                                                                          run_metadata=run_metadata)
 
@@ -117,8 +124,8 @@ def start_training(trainParams):
 
                             # Log training runtime statistics
                             if np.mod(gstep + 1, trainParams.summary_interval) == 0:
-                                summary_str, _, loss_value, top1_value, top5_value, __, ___, gstep = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op,
-                                                                                                               update_comb_stats, update_genre_stats, global_step],
+                                summary_str, _, loss_value, top1_value, top5_value, __, gstep = sess.run([summary, train_op, avg_loss_op, avg_top1_op, avg_top5_op,
+                                                                                                               update_stats, global_step],
                                                                                                               feed_dict={dataset_handle: training_handle, train_test_selector: 0, keepp_pl: model.kp})
 
                                 train_writer.add_summary(summary_str, gstep)
@@ -130,8 +137,8 @@ def start_training(trainParams):
                                 tt = []
                                 sess.run([reset_op])
                             else:
-                                _, loss_value, top1_value, top5_value, __, ___, gstep = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op,
-                                                                                                  update_comb_stats, update_genre_stats, global_step],
+                                _, loss_value, top1_value, top5_value, __, gstep = sess.run([train_op, avg_loss_op, avg_top1_op, avg_top5_op,
+                                                                                                  update_stats, global_step],
                                                                                                  feed_dict={dataset_handle: training_handle, train_test_selector: 0, keepp_pl: model.kp})
 
                             duration_mean = (duration_mean + (time.time() - start_time)) / 2
@@ -147,7 +154,7 @@ def start_training(trainParams):
                         try:
                             start_time = time.time()
 
-                            loss_value, top1_value, top5_value, _, ___, gstep = sess.run([avg_loss_op, avg_top1_op, avg_top5_op, update_comb_stats, update_genre_stats, global_step],
+                            loss_value, top1_value, top5_value, _, gstep = sess.run([avg_loss_op, avg_top1_op, avg_top5_op, update_stats, global_step],
                                                                                          feed_dict={dataset_handle: testing_handle, train_test_selector: 1, keepp_pl: 1})
 
                             duration_mean = (duration_mean + (time.time() - start_time)) / 2
@@ -156,8 +163,8 @@ def start_training(trainParams):
                             sess.run(test_iterator.initializer)
                             break
 
-                    summary_str, loss_value, top1_value, top5_value, _, ___, gstep = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op,
-                                                                                               update_comb_stats, update_genre_stats, global_step],
+                    summary_str, loss_value, top1_value, top5_value, _, gstep = sess.run([summary, avg_loss_op, avg_top1_op, avg_top5_op,
+                                                                                               update_stats, global_step],
                                                                                               feed_dict={dataset_handle: testing_handle, train_test_selector: 1, keepp_pl: 1})
 
                     test_writer.add_summary(summary_str, gstep)
@@ -171,10 +178,13 @@ def start_training(trainParams):
                     saver.save(sess, checkpoint_file, global_step=gstep)
 
                 except Exception as e:
-                    print('Received expection while training: ' + str(e) + ', recovering from last checkpoint')
-                    os.system('sudo sh -c "sync; echo 1 > /proc/sys/vm/drop_caches"')
-                    sess.run(train_iterator.initializer)
-                    sess.run(test_iterator.initializer)
+                    print('Received expection while training: ' + str(e))
+                    sess.close()
+                    return
+
+                    # os.system('sudo sh -c "sync; echo 1 > /proc/sys/vm/drop_caches"')
+                    # sess.run(train_iterator.initializer)
+                    # sess.run(test_iterator.initializer)
 
                     # ckpt = tf.train.get_checkpoint_state(trainParams.restore_from_dir[0])
                     # if ckpt and ckpt.model_checkpoint_path:
@@ -184,4 +194,4 @@ def start_training(trainParams):
         except Exception as e:
             print('finishing...' + str(e))
             sess.close()
-            return 0
+            return

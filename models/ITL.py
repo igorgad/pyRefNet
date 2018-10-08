@@ -14,18 +14,33 @@ def gram_op(x,y):
 def gram(x,y):
     with tf.name_scope('gspace') as scope:
         def rloop(i):
-            return gram_op(tf.gather(x, tf.range(tf.shape(x)[2]), axis=2), tf.expand_dims(tf.gather(y, i, axis=2), dim=2))
+            return gram_op(tf.gather(x, tf.range(tf.shape(x)[-1]), axis=-1), tf.expand_dims(tf.gather(y, i, axis=-1), dim=-1))
 
-        return tf.transpose(tf.reduce_mean(tf.map_fn(rloop, tf.range(tf.shape(y)[2]), dtype=tf.float32, parallel_iterations=8), axis=2), [1, 0, 2])
+        gmap = tf.map_fn(rloop, tf.range(tf.shape(y)[-1]), dtype=tf.float32, parallel_iterations=8) # [R, batch, (C)..., C]
+        gmap = tf.transpose(gmap, [1, 0, 2]) #[batch, R, (C)..., C]
+        # gmap = tf.cond(tf.equal(tf.size(tf.shape(gmap)), 4), lambda: tf.reduce_mean(gmap, axis=2), lambda: gmap)
+        gmap.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1]])
+        return gmap
 
 
-def gram_layer(ins):
-    [x, y] = tf.unstack(ins, axis=3)
+def gram_layer(in_x, in_y):
+    ch_x = tf.unstack(in_x, axis=3)
+    ch_y = tf.unstack(in_y, axis=3)
 
-    grm = [tf.image.per_image_standardization(gram(x,x)), tf.image.per_image_standardization(gram(y,y)), tf.image.per_image_standardization(gram(x,y))]
+    grm = [tf.image.per_image_standardization(gram(ch_x[ci], ch_y[ci])) for ci in range(len(ch_x))]
     grm = tf.stack(grm, axis=3)
 
-    grm.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 3])  # Fix lost dimensions
+    grm.set_shape([ch_x[0].get_shape().as_list()[0], ch_x[0].get_shape().as_list()[-1], ch_y[0].get_shape().as_list()[-1], len(ch_x)])  # Fix lost dimensions
+    return grm
+
+
+def gram_mono_layer(ins):
+    [x, y] = tf.unstack(ins, axis=3)
+
+    grm = tf.image.per_image_standardization(gram(x,y))
+    grm = tf.expand_dims(grm, axis=3)
+
+    grm.set_shape([x.get_shape().as_list()[0], x.get_shape().as_list()[-1], y.get_shape().as_list()[-1], 1])  # Fix lost dimensions
     return grm
 
 
